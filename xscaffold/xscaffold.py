@@ -359,6 +359,8 @@ def execute_scaffold(parent_context, args):
 
             execute_scaffold(context, scaffold)
 
+    sys.stdout.write(term_color('[done] scaffolding %s::%s complete!' % (args.package, args.name), color.CYAN) + '\n')
+
 
 def render_files(context, pkg_dir, files):
     for f in files:

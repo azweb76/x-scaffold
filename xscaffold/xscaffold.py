@@ -221,18 +221,17 @@ class ScaffoldLoader(yaml.Loader):
 
             d = raw_input(s)
 
-            if 'validate' in item:
-                matches = re.match(item['validate'], d)
-                if matches is None:
-                    sys.stdout.write(term_color('[invalid, %s] ' % item['validate'], color.RED))
-                    continue
-
             if d == '' or d is None:
                 if not required:
                     return item.get('default', None)
                 else:
                     sys.stdout.write(term_color('[required] ', color.RED))
             else:
+                if 'validate' in item:
+                    matches = re.match(item['validate'], d)
+                    if matches is None:
+                        sys.stdout.write(term_color('[invalid, %s] ' % item['validate'], color.RED))
+                        continue
                 return convert(d, item.get('type', 'str'))
 
 

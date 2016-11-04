@@ -1,0 +1,11 @@
+#!{ cicd: beta, shared: beta, dynamic: node/webapp }
+
+appname: {{ context.appname }}
+ssl: {{ context.ssl }}
+start_command: {{ context.start_command|json }}
+supports_reseller: {{ context.reseller|default(False) }}
+public: {{ context.public }}
+http_port: {{ context.http_port|default(8080) }}
+
+hosts:
+  - {{ context.host|default(context.appname) }}

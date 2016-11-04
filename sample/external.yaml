@@ -1,0 +1,4 @@
+tasks:
+  - task: External scaffold
+    exec:
+      - "echo 'from parent: {context.appname}'"

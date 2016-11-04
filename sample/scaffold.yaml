@@ -47,3 +47,9 @@ tasks:
     scaffold:
       package: ./sample
       name: external
+
+notes: |
+  These are test notes:
+
+    * item 1
+    * item 2

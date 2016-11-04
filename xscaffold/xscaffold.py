@@ -312,16 +312,22 @@ def execute_command(context, pkg_dir, commands):
 
 def apply_cli(args):
     todos = []
-    execute_scaffold({}, args, todos)
+    notes = []
+    execute_scaffold({}, args, todos, notes)
 
     if len(todos) > 0:
         sys.stdout.write('\n=== Follow-up Checklist ===\n\n')
         for todo in todos:
             sys.stdout.write(term_color('[ ] %s' % todo, color.GREEN) + '\n')
+        sys.stdout.write('\n')
+
+    if len(notes) > 0:
+        sys.stdout.write('\n=== Notes ===\n\n')
+        for note in notes:
+            sys.stdout.write(term_color('%s' % note, color.GREEN) + '\n')
         sys.stdout.write('\n\n')
 
-
-def execute_scaffold(parent_context, args, todos):
+def execute_scaffold(parent_context, args, todos, notes):
     if os.path.exists(args.package):
         sys.stdout.write(
             term_color('[info] using local package \'%s\'...' % args.package, color.YELLOW) + '\n')
@@ -380,10 +386,13 @@ def execute_scaffold(parent_context, args, todos):
                     'extend_context': args.extend_context
                 }, **task['scaffold']))
 
-                execute_scaffold(context, scaffold, todos)
+                execute_scaffold(context, scaffold, todos, notes)
 
             if 'todo' in task:
                 todos.append(task['todo'])
+
+    if 'notes' in config:
+        notes.append(config['notes'])
 
     sys.stdout.write(term_color('[done] scaffolding %s::%s complete!' % (args.package, args.name), color.CYAN) + '\n')
 

@@ -9,6 +9,7 @@ import glob2
 import logging
 import json
 import sys
+import re
 import tempfile
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
@@ -220,6 +221,12 @@ class ScaffoldLoader(yaml.Loader):
 
             d = raw_input(s)
 
+            if 'validate' in item:
+                matches = re.match(item['validate'], d)
+                if matches is None:
+                    sys.stdout.write(term_color('[invalid, %s] ' % item['validate'], color.RED))
+                    continue
+
             if d == '' or d is None:
                 if not required:
                     return item.get('default', None)
@@ -305,10 +312,17 @@ def execute_command(context, pkg_dir, commands):
 
 
 def apply_cli(args):
-    execute_scaffold({}, args)
+    todos = []
+    execute_scaffold({}, args, todos)
+
+    if len(todos) > 0:
+        sys.stdout.write('\n=== Follow-up Checklist ===\n\n')
+        for todo in todos:
+            sys.stdout.write(term_color('[ ] %s' % todo, color.GREEN) + '\n')
+        sys.stdout.write('\n\n')
 
 
-def execute_scaffold(parent_context, args):
+def execute_scaffold(parent_context, args, todos):
     if os.path.exists(args.package):
         sys.stdout.write(
             term_color('[info] using local package \'%s\'...' % args.package, color.YELLOW) + '\n')
@@ -367,7 +381,10 @@ def execute_scaffold(parent_context, args):
                     'extend_context': args.extend_context
                 }, **task['scaffold']))
 
-                execute_scaffold(context, scaffold)
+                execute_scaffold(context, scaffold, todos)
+
+            if 'todo' in task:
+                todos.append(task['todo'])
 
     sys.stdout.write(term_color('[done] scaffolding %s::%s complete!' % (args.package, args.name), color.CYAN) + '\n')
 

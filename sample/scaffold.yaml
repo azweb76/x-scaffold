@@ -5,6 +5,7 @@ context:
   ssl: !prompt &HAS_SSL
     text: Does the app need ssl (default={default})?
     type: bool
+    validate: '[yn]'
     default: False
   public: !prompt
     text: Does the customer need to access the application (default={default})?
@@ -33,6 +34,7 @@ tasks:
       - "echo '{context.appname}'"
   - task: Say hi
     enabled: *HAS_SSL
+    todo: This is help text for followup actions.
     exec:
       - "echo 'conditional {context.appname}'"
   - task: Setup config

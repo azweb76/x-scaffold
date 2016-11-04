@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="xscaffold",
-    version="1.0.2",
+    version="1.0.3",
     install_requires=[
         'PyYaml',
         'jinja2',

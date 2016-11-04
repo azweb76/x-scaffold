@@ -307,13 +307,19 @@ def apply_cli(args):
 
 def execute_scaffold(parent_context, args):
     if os.path.exists(args.package):
+        sys.stdout.write(
+            term_color('[info] using local package \'%s\'...' % args.package, color.YELLOW) + '\n')
         pkg_dir = args.package
     else:
         pkg_dir = os.path.join(args.temp, args.package)
 
         if os.path.exists(pkg_dir):
+            sys.stdout.write(
+                term_color('[git] updating %s package...' % args.package, color.YELLOW) + '\n')
             rc = os.system("""(cd {pkg_dir} && git pull >/dev/null 2>&1)""".format(pkg_dir=pkg_dir))
         else:
+            sys.stdout.write(
+                term_color('[git] pulling %s package...' % args.package, color.YELLOW) + '\n')
             rc = os.system("""
         git clone {url}/{package} {pkg_dir} >/dev/null 2>&1
         """.format(pkg_dir=pkg_dir, url=args.url, package=args.package))

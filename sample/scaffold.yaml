@@ -2,14 +2,14 @@ context:
   appname: !prompt &APPNAME
     text: What is the name of the app (limit to 16 characters)?
     required: true
-  ssl: !prompt
+  ssl: !prompt &HAS_SSL
     text: Does the app need ssl (default={default})?
     type: bool
-    default: n
+    default: False
   public: !prompt
     text: Does the customer need to access the application (default={default})?
     type: bool
-    default: n
+    default: False
   http_port: !prompt
     text: What port does the app listen for HTTP traffic (default={default})?
     default: 8080
@@ -18,6 +18,7 @@ context:
     default: *APPNAME
   start_command: !prompt
     text: What is the start command (default={default})?
+    enabled: *HAS_SSL
     default: /src/bin/start
 
 #files:
@@ -30,6 +31,10 @@ tasks:
   - task: Say hi
     exec:
       - "echo '{context.appname}'"
+  - task: Say hi
+    enabled: *HAS_SSL
+    exec:
+      - "echo 'conditional {context.appname}'"
   - task: Setup config
     files:
       - name: scaffold/config.yaml

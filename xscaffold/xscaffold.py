@@ -208,6 +208,9 @@ class ScaffoldLoader(yaml.Loader):
     def prompt(self, node):
         item = self.construct_mapping(node, 9999)
 
+        if not item.get('enabled', True):
+            return item.get('default', None)
+
         required = item.get('required', False)
         while True:
             s = term_color('%s: ' % item['text'].format(default=item.get('default', None)), color.BOLD)
@@ -350,20 +353,21 @@ def execute_scaffold(parent_context, args):
 
     tasks = config.get('tasks', [])
     for task in tasks:
-        sys.stdout.write(term_color('[task] %s' % task['task'], color.CYAN) + '\n')
-        if 'files' in task:
-            render_files(context, pkg_dir, task['files'])
-        if 'exec' in task:
-            execute_command(context, pkg_dir, task['exec'])
-        if 'scaffold' in task:
-            scaffold = AttributeDict(dict({
-                'url': args.url,
-                'temp': args.temp,
-                'version': args.version,
-                'extend_context': args.extend_context
-            }, **task['scaffold']))
+        if task.get('enabled', True):
+            sys.stdout.write(term_color('[task] %s' % task['task'], color.CYAN) + '\n')
+            if 'files' in task:
+                render_files(context, pkg_dir, task['files'])
+            if 'exec' in task:
+                execute_command(context, pkg_dir, task['exec'])
+            if 'scaffold' in task:
+                scaffold = AttributeDict(dict({
+                    'url': args.url,
+                    'temp': args.temp,
+                    'version': args.version,
+                    'extend_context': args.extend_context
+                }, **task['scaffold']))
 
-            execute_scaffold(context, scaffold)
+                execute_scaffold(context, scaffold)
 
     sys.stdout.write(term_color('[done] scaffolding %s::%s complete!' % (args.package, args.name), color.CYAN) + '\n')
 

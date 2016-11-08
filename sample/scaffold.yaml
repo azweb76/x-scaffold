@@ -17,6 +17,10 @@ context:
   host: !prompt
     text: What is the DNS prefix (<prefix>.domain.com, default={default})?
     default: *APPNAME
+  bool_value: !prompt
+    text: Another boolean check (default={default})?
+    type: bool
+    default: False
   start_command: !prompt
     text: What is the start command (default={default})?
     enabled: *HAS_SSL

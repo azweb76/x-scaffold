@@ -11,10 +11,11 @@ import json
 import sys
 import re
 import tempfile
+import importlib
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
 
-log = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 
 def complete(text, state):
@@ -41,18 +42,18 @@ class AttributeDict(dict):
     __setattr__ = dict.__setitem__
 
 
-class color:
-    PURPLE = '\033[35m'
-    CYAN = '\033[36m'
-    BLUE = '\033[34m'
-    GREEN = '\033[32m'
-    YELLOW = '\033[33m'
-    RED = '\033[31m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-    ITALIC = '\033[3m'
-    END = '\033[0m'
-
+color = AttributeDict({
+    'PURPLE': '\033[35m',
+    'CYAN':  '\033[36m',
+    'BLUE':  '\033[34m',
+    'GREEN':  '\033[32m',
+    'YELLOW':  '\033[33m',
+    'RED':  '\033[31m',
+    'BOLD':  '\033[1m',
+    'UNDERLINE':  '\033[4m',
+    'ITALIC':  '\033[3m',
+    'END':  '\033[0m',
+})
 
 def str2bool(v):
     if v is None:
@@ -111,10 +112,12 @@ def yaml_format(value):
         return 'null'
     return yaml.dump(value, default_flow_style=True)
 
+
 def json_format(value):
     if value is None:
         return 'null'
     return json.dumps(value)
+
 
 def get_parser(path):
     ext = os.path.splitext(path)[1]
@@ -147,6 +150,21 @@ def render_file(path, context):
     return render(template_name, context, template_dir)
 
 
+def is_enabled(options):
+    if 'enabled' in options:
+        return options['enabled']
+    if 'disabled' in options:
+        return not options['disabled']
+    if 'enabledif' in options:
+        enabledif = options['enabledif']
+        value = enabledif['value']
+        if 'equals' in enabledif:
+            return value == enabledif['equals']
+        elif 'notequals' in enabledif:
+            return value != enabledif['notequals']
+    return True
+
+
 class ScaffoldLoader(yaml.Loader):
     def __init__(self, stream):
         if stream is not None:
@@ -155,61 +173,22 @@ class ScaffoldLoader(yaml.Loader):
 
         super(ScaffoldLoader, self).__init__(stream)
 
-    # def include(self, node):
-    #     filename = os.path.join(self._root, self.construct_scalar(node))
-    #     files = glob2.glob(filename, with_matches=False)
-    #
-    #     x = None
-    #     if len(files) == 0:
-    #         log.warning('no !include files found matching %s' % filename)
-    #         return x
-    #
-    #     for f in files:
-    #         name, ext = os.path.splitext(f)
-    #         if ext == '.jinja':
-    #             content = render_file(f, {})
-    #             y = yaml.load(content)
-    #         else:
-    #             with open(f, 'r') as fhd:
-    #                 y = yaml.load(fhd, CicdLoader)
-    #
-    #         if isinstance(y, str):
-    #             x = y
-    #         else:
-    #             x = extend(y, x, merge=True)
-    #
-    #     return x
-    #
-    # def resolve_path(self, node):
-    #     filename = os.path.join(self._root, self.construct_scalar(node))
-    #     return filename
-    #
-    # def shared_path(self, node):
-    #     root = os.path.expandvars('$CICD_SHARED')
-    #     filename = os.path.join(root, self.construct_scalar(node))
-    #     return filename
-    #
-    # def template(self, tag_prefix, node):
-    #     item = self.construct_mapping(node, 9999)
-    #
-    #     template_path = os.path.expandvars('$CICD_SHARED/templates/%s.yaml' % tag_prefix)
-    #     return yaml.load(render_file(template_path, item), CicdLoader)
-    #
-    # def encrypted(self, node):
-    #     value = self.construct_scalar(node)
-    #     try:
-    #         return xcrypto.decrypt(value)
-    #     except Exception as e:
-    #         log.warning('unable to decrypt value in yaml')
-    #         return None
-    #
-    # def merge_list(self, node):
-    #     item = self.construct_mapping(node, 9999)
-    #     return MergeList(item)
+    def module(self, node):
+        item = self.construct_mapping(node, 9999)
+
+        if not is_enabled(item):
+            return None
+
+        fn = load_module(item)
+        if 'args' in item:
+            return fn(**item['args'])
+        else:
+            return fn()
+
     def prompt(self, node):
         item = self.construct_mapping(node, 9999)
 
-        if not item.get('enabled', True):
+        if not is_enabled(item):
             return item.get('default', None)
 
         required = item.get('required', False)
@@ -219,10 +198,30 @@ class ScaffoldLoader(yaml.Loader):
                 desc = term_color('%s' % item['description'], color.ITALIC)
                 sys.stdout.write('%s\n' % desc)
 
-            d = raw_input(s)
+            if 'choices' in item:
+                s = term_color('%s: ' % item['text'].format(default=item.get('default', None)), color.BOLD)
+                sys.stdout.write('%s\n\n' % s)
+
+                choices = item['choices']
+                while True:
+                    for c in choices:
+                        keywords = ', '.join(c['keywords']).ljust(20)
+                        s = '%s' % c['text'].format(default=item.get('default', None))
+                        sys.stdout.write('[%s] %s\n' % (keywords, s))
+                    d = raw_input(term_color('\nchoice: ', color.BOLD))
+
+                    for c in choices:
+                        if d in c['keywords']:
+                            return c.get('value', d)
+
+                    sys.stdout.write('\n%s please select a keyword on the left\n\n' %
+                                     term_color('[invalid choice] ', color.RED))
+            else:
+                d = raw_input(s)
 
             if d == '' or d is None:
                 if not required:
+                    _log.debug('default: %s, %s', item, item.get('default', None))
                     return item.get('default', None)
                 else:
                     sys.stdout.write(term_color('[required] ', color.RED))
@@ -236,6 +235,7 @@ class ScaffoldLoader(yaml.Loader):
 
 
 ScaffoldLoader.add_constructor('!prompt', ScaffoldLoader.prompt)
+ScaffoldLoader.add_constructor('!module', ScaffoldLoader.module)
 
 
 def convert(v, type):
@@ -279,6 +279,7 @@ def main():
         parser_a.set_defaults(func=config_cli)
 
         args = parser.parse_args()
+        logging.getLogger('requests').setLevel(logging.ERROR)
         logging.basicConfig(level=getattr(logging, args.log_level))
 
         args.func(args)
@@ -302,15 +303,34 @@ def config_cli(args):
         sys.stdout.write('url: %s' % options.get('url', 'not defined'))
 
 
+def log(s):
+    sys.stdout.write(s.format(**color))
+
+
 def execute_command(context, pkg_dir, commands):
     for c in commands:
         cmd = c.format(pkg_dir=pkg_dir, context=AttributeDict(context))
-        rc = os.system(cmd)
+        rc = os.system('set +x -ae\n%s' % cmd)
         if rc != 0:
             raise RuntimeError('Failed to execute command')
 
 
+def load_module(m):
+    mod = importlib.import_module('%s' % m['name'], package='.')
+    if hasattr(mod, 'init'):
+        getattr(mod, 'init')(sys.modules[__name__])
+
+    return getattr(mod, m.get('function', 'execute'))
+
+
+def execute_modules(context, pkg_dir, modules):
+    for m in modules:
+        execute_fn = load_module(m)
+        execute_fn(context, pkg_dir, m)
+
+
 def apply_cli(args):
+
     todos = []
     notes = []
     execute_scaffold({}, args, todos, notes)
@@ -326,6 +346,7 @@ def apply_cli(args):
         for note in notes:
             sys.stdout.write(term_color('%s' % note, color.GREEN) + '\n')
         sys.stdout.write('\n\n')
+
 
 def execute_scaffold(parent_context, args, todos, notes):
     if os.path.exists(args.package):
@@ -352,12 +373,13 @@ def execute_scaffold(parent_context, args, todos, notes):
         if rc != 0:
             sys.stdout.write('Failed to load version %s' % args.version)
 
+    sys.path.append(os.path.join(pkg_dir, 'modules'))
     scaffold_file = os.path.join(pkg_dir, '%s.yaml' % args.name)
     if os.path.exists(scaffold_file):
         with open(scaffold_file, 'r') as fhd:
             config = yaml.load(fhd, ScaffoldLoader)
     else:
-        log.warn('scaffold file %s not found', scaffold_file)
+        _log.warning('scaffold file %s not found', scaffold_file)
         config = {}
 
     if args.extend_context:
@@ -372,22 +394,27 @@ def execute_scaffold(parent_context, args, todos, notes):
 
     tasks = config.get('tasks', [])
     for task in tasks:
-        if task.get('enabled', True):
-            sys.stdout.write(term_color('[task] %s' % task['task'], color.CYAN) + '\n')
+        if is_enabled(task):
+            if 'task' in task:
+                sys.stdout.write(term_color('[task] %s' % task['task'], color.CYAN) + '\n')
             if 'files' in task:
                 render_files(context, pkg_dir, task['files'])
             if 'exec' in task:
                 execute_command(context, pkg_dir, task['exec'])
+            if 'modules' in task:
+                execute_modules(context, pkg_dir, task['modules'])
             if 'scaffold' in task:
                 scaffold = AttributeDict(dict({
                     'url': args.url,
                     'temp': args.temp,
                     'version': args.version,
+                    'package': args.package,
                     'extend_context': args.extend_context
                 }, **task['scaffold']))
 
-                execute_scaffold(context, scaffold, todos, notes)
-
+                context = execute_scaffold(context, scaffold, todos, notes)
+            if 'log' in task:
+                sys.stdout.write(term_color('%s' % task['log'].format(**context), color.YELLOW) + '\n')
             if 'todo' in task:
                 todos.append(task['todo'])
 
@@ -395,6 +422,8 @@ def execute_scaffold(parent_context, args, todos, notes):
         notes.append(config['notes'])
 
     sys.stdout.write(term_color('[done] scaffolding %s::%s complete!' % (args.package, args.name), color.CYAN) + '\n')
+
+    return context
 
 
 def render_files(context, pkg_dir, files):

@@ -6,6 +6,7 @@ start_command: {{ context.start_command|json }}
 supports_reseller: {{ context.reseller|default(False) }}
 public: {{ context.public }}
 http_port: {{ context.http_port|default(8080) }}
+boolean: {{ context.bool_value }}
 
 hosts:
   - {{ context.host|default(context.appname) }}

@@ -316,7 +316,7 @@ def execute_command(context, pkg_dir, commands):
 
 
 def load_module(m):
-    mod = importlib.import_module('%s' % m['name'], package='.')
+    mod = importlib.import_module('modules.%s' % m['name'])
     if hasattr(mod, 'init'):
         getattr(mod, 'init')(sys.modules[__name__])
 
@@ -348,6 +348,15 @@ def apply_cli(args):
         sys.stdout.write('\n\n')
 
 
+def rm_rf(d):
+    for path in (os.path.join(d, f) for f in os.listdir(d)):
+        if os.path.isdir(path):
+            rm_rf(path)
+        else:
+            os.unlink(path)
+    os.rmdir(d)
+
+
 def execute_scaffold(parent_context, args, todos, notes):
     if os.path.exists(args.package):
         sys.stdout.write(
@@ -356,11 +365,15 @@ def execute_scaffold(parent_context, args, todos, notes):
     else:
         pkg_dir = os.path.join(args.temp, args.package)
 
+        rc = 9999
         if os.path.exists(pkg_dir):
-            sys.stdout.write(
-                term_color('[git] updating %s package...' % args.package, color.YELLOW) + '\n')
+            log('{YELLOW}[git] updating %s package...{END}\n' % args.package)
             rc = os.system("""(cd {pkg_dir} && git pull >/dev/null 2>&1)""".format(pkg_dir=pkg_dir))
-        else:
+            if rc != 0:
+                log('{RED}[error]{YELLOW} package %s is having issues, repairing...{END}\n' % args.package)
+                rm_rf(pkg_dir)
+
+        if rc != 0:
             sys.stdout.write(
                 term_color('[git] pulling %s package...' % args.package, color.YELLOW) + '\n')
             rc = os.system("""
@@ -373,7 +386,7 @@ def execute_scaffold(parent_context, args, todos, notes):
         if rc != 0:
             sys.stdout.write('Failed to load version %s' % args.version)
 
-    sys.path.append(os.path.join(pkg_dir, 'modules'))
+    sys.path.append(pkg_dir)
     scaffold_file = os.path.join(pkg_dir, '%s.yaml' % args.name)
     if os.path.exists(scaffold_file):
         with open(scaffold_file, 'r') as fhd:

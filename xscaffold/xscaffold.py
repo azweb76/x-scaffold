@@ -56,6 +56,14 @@ color = AttributeDict({
     'END':  '\033[0m',
 })
 
+
+def dict_to_str(d, fmt='%s=%s\n'):
+    s = ''
+    for x in d:
+        s += fmt % (x, d[x])
+    return s
+
+
 def str2bool(v):
     if v is None:
         return False
@@ -68,6 +76,7 @@ known_types = {
     'str': str,
     'float': float
 }
+
 
 def term_color(text, *text_colors):
     return ''.join(text_colors) + text + color.END
@@ -332,11 +341,16 @@ def log(s, context={}):
 
 
 def execute_command(context, pkg_dir, commands):
-    for c in commands:
-        cmd = c.format(**context)
-        rc = os.system('set +x -ae\n%s' % cmd)
-        if rc != 0:
-            raise RuntimeError('Failed to execute command')
+    cmds = '\n'.join(commands).format(**context)
+    term_colors = dict_to_str(color, 'TERM_%s="%s"\n')
+    cmd = """
+set +x -ae
+%s
+%s
+""" % (term_colors, cmds)
+    rc = os.system(cmd)
+    if rc != 0:
+        raise RuntimeError('Failed to execute command')
 
 
 def load_module(m):
@@ -357,7 +371,7 @@ def apply_cli(args):
 
     todos = []
     notes = []
-    context = execute_scaffold({}, args, todos, notes)
+    context = execute_scaffold(color, args, todos, notes)
 
     if len(todos) > 0:
         sys.stdout.write('\n=== Follow-up Checklist ===\n\n')

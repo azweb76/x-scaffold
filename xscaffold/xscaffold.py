@@ -12,6 +12,7 @@ import sys
 import re
 import tempfile
 import importlib
+from collections import defaultdict
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
 
@@ -204,15 +205,27 @@ class ScaffoldLoader(yaml.Loader):
 
                 choices = item['choices']
                 while True:
+                    opts = []
+                    max_len = 0
                     for c in choices:
-                        keywords = ', '.join(c['keywords']).ljust(20)
-                        s = '%s' % c['text'].format(default=item.get('default', None))
-                        sys.stdout.write('[%s] %s\n' % (keywords, s))
+                        keywords = ', '.join(c['keywords'])
+                        if len(keywords) > max_len:
+                            max_len = len(keywords)
+                        opts.append({ 'kw': keywords, 't': c['text']})
+
+                    for opt in opts:
+                        s = '%s' % c['text']
+                        opt['kw'] = opt['kw'].ljust(max_len)
+                        sys.stdout.write('[{kw}] {t}\n'.format(**opt))
+
                     d = raw_input(term_color('\nchoice: ', color.BOLD))
 
                     for c in choices:
                         if d in c['keywords']:
-                            return c.get('value', d)
+                            v = c.get('value', d)
+                            if isinstance(v, dict):
+                                v = defaultdict(lambda: '', item.get('default', {}), **v)
+                            return v
 
                     sys.stdout.write('\n%s please select a keyword on the left\n\n' %
                                      term_color('[invalid choice] ', color.RED))
@@ -278,6 +291,9 @@ def main():
         parser_a.add_argument('action', default='view', help='save or view configuration')
         parser_a.set_defaults(func=config_cli)
 
+        parser_a = subparsers.add_parser('upgrade', help='upgrade x-scaffold using pip')
+        parser_a.set_defaults(func=upgrade_cli)
+
         args = parser.parse_args()
         logging.getLogger('requests').setLevel(logging.ERROR)
         logging.basicConfig(level=getattr(logging, args.log_level))
@@ -285,6 +301,14 @@ def main():
         args.func(args)
     except KeyboardInterrupt:
         exit(0)
+
+
+def upgrade_cli(args):
+    rc = os.system('pip install git+https://github.com/azweb76/x-scaffold --upgrade >/dev/null 2>&1')
+    if rc == 0:
+        log('x-scaffold was {GREEN}successfully{END} upgraded.')
+    else:
+        log('x-scaffold {RED}failed{END} to upgrade [rc=%s].' % rc)
 
 
 def config_cli(args):
@@ -303,13 +327,13 @@ def config_cli(args):
         sys.stdout.write('url: %s' % options.get('url', 'not defined'))
 
 
-def log(s):
-    sys.stdout.write(s.format(**color))
+def log(s, context={}):
+    sys.stdout.write(s.format(**dict(color, **context)))
 
 
 def execute_command(context, pkg_dir, commands):
     for c in commands:
-        cmd = c.format(pkg_dir=pkg_dir, context=AttributeDict(context))
+        cmd = c.format(**context)
         rc = os.system('set +x -ae\n%s' % cmd)
         if rc != 0:
             raise RuntimeError('Failed to execute command')
@@ -333,18 +357,18 @@ def apply_cli(args):
 
     todos = []
     notes = []
-    execute_scaffold({}, args, todos, notes)
+    context = execute_scaffold({}, args, todos, notes)
 
     if len(todos) > 0:
         sys.stdout.write('\n=== Follow-up Checklist ===\n\n')
         for todo in todos:
-            sys.stdout.write(term_color('[ ] %s' % todo, color.GREEN) + '\n')
+            log('[ ] %s\n' % todo, context=context)
         sys.stdout.write('\n')
 
     if len(notes) > 0:
         sys.stdout.write('\n=== Notes ===\n\n')
         for note in notes:
-            sys.stdout.write(term_color('%s' % note, color.GREEN) + '\n')
+            log('%s\n' % note, context=context)
         sys.stdout.write('\n\n')
 
 
@@ -396,13 +420,14 @@ def execute_scaffold(parent_context, args, todos, notes):
         config = {}
 
     if args.extend_context:
-        context = dict(parent_context, **config.get('context', {}))
+        context = defaultdict(lambda: '', parent_context, **config.get('context', {}))
     else:
         context = config.get('context', {})
         context['parent'] = parent_context
 
     files = config.get('files', [])
 
+    context['pkg_dir'] = pkg_dir
     render_files(context, pkg_dir, files)
 
     tasks = config.get('tasks', [])
@@ -441,9 +466,9 @@ def execute_scaffold(parent_context, args, todos, notes):
 
 def render_files(context, pkg_dir, files):
     for f in files:
-        target = f['target']
+        target = f['target'].format(**context)
         if not target.endswith('/'):
-            p = os.path.join(pkg_dir, f['name'])
+            p = os.path.join(pkg_dir, f['name'].format(**context))
             base, name = os.path.split(p)
             tbase, tname = os.path.split(target)
             if not os.path.exists(tbase):
@@ -452,7 +477,8 @@ def render_files(context, pkg_dir, files):
             with open(target, 'w') as fhd:
                 fhd.write(content)
         else:
-            source = os.path.join(pkg_dir, f['name'])
+            source = os.path.join(pkg_dir, f['name'].format(**context))
+
             sbase, sname = os.path.split(source)
             paths = glob2.glob(source)
 
@@ -460,11 +486,19 @@ def render_files(context, pkg_dir, files):
                 tfile = p[len(sbase) + 1:]
                 t = os.path.join(target, tfile)
                 tbase, tname = os.path.split(t)
+                tname, text = os.path.splitext(tname)
                 if not os.path.exists(tbase):
                     os.makedirs(tbase)
-                content = render_file(p, context)
-                with open(t, 'w') as fhd:
-                    fhd.write(content)
+                if os.path.isfile(p):
+                    if text == '.jinja':
+                        t = os.path.join(target, tname)
+                        content = render_file(p, context)
+                        with open(t, 'w') as fhd:
+                            fhd.write(content)
+                    else:
+                        with open(p, 'r') as fhd:
+                            with open(t, 'w') as fhd2:
+                                fhd2.write(fhd.read())
 
 
 if __name__ == '__main__':

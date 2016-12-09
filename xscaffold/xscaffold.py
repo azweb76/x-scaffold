@@ -7,6 +7,7 @@ import readline
 import yaml
 import glob2
 import logging
+import getpass
 import json
 import sys
 import re
@@ -198,18 +199,22 @@ class ScaffoldLoader(yaml.Loader):
     def prompt(self, node):
         item = self.construct_mapping(node, 9999)
 
+        default = item.get('default', None)
+        if isinstance(default, str):
+            default = default.format(env=os.environ)
+
         if not is_enabled(item):
-            return item.get('default', None)
+            return default
 
         required = item.get('required', False)
         while True:
-            s = term_color('%s: ' % item['text'].format(default=item.get('default', None)), color.BOLD)
+            s = term_color('%s: ' % item['text'].format(default=default, env=os.environ), color.BOLD)
             if 'description' in item:
                 desc = term_color('%s' % item['description'], color.ITALIC)
                 sys.stdout.write('%s\n' % desc)
 
             if 'choices' in item:
-                s = term_color('%s: ' % item['text'].format(default=item.get('default', None)), color.BOLD)
+                s = term_color('%s: ' % item['text'].format(default=default), color.BOLD)
                 sys.stdout.write('%s\n\n' % s)
 
                 choices = item['choices']
@@ -239,12 +244,14 @@ class ScaffoldLoader(yaml.Loader):
                     sys.stdout.write('\n%s please select a keyword on the left\n\n' %
                                      term_color('[invalid choice] ', color.RED))
             else:
-                d = raw_input(s)
+                if item.get('secure', False):
+                    d = getpass.getpass(prompt=s)
+                else:
+                    d = raw_input(s)
 
             if d == '' or d is None:
                 if not required:
-                    _log.debug('default: %s, %s', item, item.get('default', None))
-                    return item.get('default', None)
+                    return default
                 else:
                     sys.stdout.write(term_color('[required] ', color.RED))
             else:

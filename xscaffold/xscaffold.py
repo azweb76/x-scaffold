@@ -234,7 +234,7 @@ class Prompt:
                             v = c.get('value', d)
                             if isinstance(v, dict):
                                 v = defaultdict(
-                                    lambda: '', d.get('default', {}), **v)
+                                    lambda: '', c.get('default', {}), **v)
                             return v
 
                     sys.stdout.write('\n%s please select a keyword on the left\n\n' %

@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import argparse
+import io
 import os
 import yaml
 import glob2
@@ -227,7 +228,7 @@ class Prompt:
                         opt['kw'] = opt['kw'].ljust(max_len)
                         sys.stdout.write('[{kw}] {t}\n'.format(**opt))
 
-                    d = raw_input(term_color('\nchoice: ', color.BOLD))
+                    d = input(term_color('\nchoice: ', color.BOLD))
 
                     for c in choices:
                         if d in c['keywords']:
@@ -243,7 +244,7 @@ class Prompt:
                 if prompt.get('secure', False):
                     d = getpass.getpass(prompt=s)
                 else:
-                    d = raw_input(s)
+                    d = input(s)
 
             if d == '' or d is None:
                 if not required:
@@ -268,7 +269,7 @@ class ScaffoldLoader(yaml.Loader):
 
     def __init__(self, stream):
         if stream is not None:
-            if isinstance(stream, file):
+            if isinstance(stream, io.FileIO):
                 self._root = os.path.split(stream.name)[0]
             elif isinstance(stream, dict):
                 d = stream

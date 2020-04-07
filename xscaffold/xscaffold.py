@@ -261,7 +261,7 @@ class Prompt:
                 if 'load' in prompt:
                     if prompt['load'] == 'yaml':
                         with open(d, 'r') as fhd:
-                            return yaml.load(fhd)
+                            return yaml.load(fhd, Loader=yaml.FullLoader)
                 return convert(d, prompt.get('type', 'str'))
 
 

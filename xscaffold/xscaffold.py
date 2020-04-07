@@ -114,7 +114,7 @@ class RenderUtils(object):  # pylint: disable=R0903
         """Used to read a YAML file and return its contents."""
 
         with open(path, 'r') as file_handle:
-            return yaml.load(file_handle)
+            return yaml.load(file_handle, Loader=yaml.FullLoader)
 
 
 def format_list(value, format='{value}'):
@@ -320,7 +320,7 @@ def main():
         scaffold_file = os.path.expanduser('~/.xscaffold')
         if os.path.exists(scaffold_file):
             with open(scaffold_file, 'r') as fhd:
-                options = yaml.load(fhd)
+                options = yaml.load(fhd, Loader=yaml.FullLoader)
 
         parser = argparse.ArgumentParser(
             description='Scaffold a directory of files.')
@@ -381,7 +381,7 @@ def config_cli(args):
     scaffold_file = os.path.expanduser('~/.xscaffold')
     if os.path.exists(scaffold_file):
         with open(scaffold_file, 'r') as fhd:
-            options = yaml.load(fhd)
+            options = yaml.load(fhd, Loader=yaml.FullLoader)
 
     if args.action == 'save':
         options['url'] = args.url

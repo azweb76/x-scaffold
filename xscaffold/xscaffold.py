@@ -4,8 +4,9 @@
 import argparse
 import io
 import os
+import pathlib
+
 import yaml
-import glob2
 import logging
 import getpass
 import json
@@ -16,6 +17,7 @@ import importlib
 from collections import defaultdict
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
+from fnmatch import fnmatch
 
 _log = logging.getLogger(__name__)
 
@@ -28,7 +30,7 @@ def complete(text, state):
         p = text
         home = None
 
-    items = glob2.glob(p + '*')
+    items = pathlib.Path(os.getcwd()).glob(p + '*')
     if items is not None and home is not None:
         items = ['~/' + x[len(home):] for x in items]
     return (items + [None])[state]
@@ -334,7 +336,7 @@ def main():
             help='optional. Set the log level.')
 
         parser.add_argument('-u', '--url', default=options.get('url', 'https://github.com'), help='github repo url')
-        parser.add_argument('-t', '--temp', default=options.get('temp_dir',tempfile.gettempdir()), help='temporary directory')
+        parser.add_argument('-t', '--temp', default=options.get('temp_dir', tempfile.gettempdir()), help='temporary directory')
 
         subparsers = parser.add_subparsers(help='actions')
 
@@ -369,7 +371,7 @@ def main():
 
 def upgrade_cli(args):
     rc = os.system(
-        'pip install git+https://github.com/azweb76/x-scaffold --upgrade >/dev/null 2>&1')
+        'pip install x-scaffold --upgrade >/dev/null 2>&1')
     if rc == 0:
         log('x-scaffold was {GREEN}successfully{END} upgraded.')
     else:
@@ -542,7 +544,12 @@ def execute_scaffold(parent_context, args, todos, notes):
                 sys.stdout.write(term_color(
                     '%s' % task['log'].format(**context), color.YELLOW) + '\n')
             if 'todo' in task:
-                todos.append(task['todo'])
+                todo = task['todo']
+                if isinstance(todo, list):
+                   for todo_item in todo:
+                       todos.append(todo_item)
+                else:
+                    todos.append(todo)
 
     if 'notes' in config:
         notes.append(config['notes'])
@@ -553,34 +560,45 @@ def execute_scaffold(parent_context, args, todos, notes):
     return context
 
 
+def is_match(path, templates):
+    for template in templates:
+        if fnmatch(path, template):
+            return True
+    return False
+
+
 def render_files(context, pkg_dir, files):
+    full_pkg_dir = os.path.realpath(pkg_dir)
     for f in files:
         target = f['target'].format(**context)
-        if not target.endswith('/'):
-            p = os.path.join(pkg_dir, f['name'].format(**context))
-            base, name = os.path.split(p)
+        full_target = os.path.realpath(target)
+
+        source = os.path.join(full_pkg_dir, f['name'].format(**context))
+        if os.path.exists(source) and os.path.isfile(source):
             tbase, tname = os.path.split(target)
             if not os.path.exists(tbase):
                 os.makedirs(tbase)
-            content = render_file(p, context)
+            content = render_file(source, context)
             with open(target, 'w') as fhd:
                 fhd.write(content)
         else:
-            source = os.path.join(pkg_dir, f['name'].format(**context))
+            templates = f.get('templates', [])
+            exclude = f.get('exclude', ['.git', '.git/*'])
 
-            sbase, sname = os.path.split(source)
-            paths = glob2.glob(source)
+            paths = pathlib.Path(full_pkg_dir).rglob(f['name'].format(**context))
 
-            for p in paths:
-                tfile = p[len(sbase) + 1:]
-                t = os.path.join(target, tfile)
+            for p_obj in paths:
+                p = str(p_obj)
+                tfile = p[len(full_pkg_dir)+1:]
+                t = os.path.join(full_target, tfile)
                 tbase, tname = os.path.split(t)
-                tname, text = os.path.splitext(tname)
+                if is_match(tfile, exclude):
+                    continue
                 if not os.path.exists(tbase):
                     os.makedirs(tbase)
-                if os.path.isfile(p):
-                    if text == '.jinja':
-                        t = os.path.join(target, tname)
+
+                if p_obj.is_file():
+                    if is_match(tfile, templates):
                         content = render_file(p, context)
                         with open(t, 'w') as fhd:
                             fhd.write(content)

@@ -2,11 +2,10 @@ from setuptools import setup
 
 setup(
     name="xscaffold",
-    version="1.1.2",
+    version="1.2.0",
     install_requires=[
         'PyYaml',
-        'jinja2',
-        'glob2'
+        'jinja2'
     ],
     author = "Dan Clayton",
     author_email = "dan@azwebmaster.com",

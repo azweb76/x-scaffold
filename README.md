@@ -3,7 +3,7 @@ Python-based tool used to scaffold a project.
 
 ## Install
 ```bash
-pip install git+https://github.com/azweb76/x-scaffold [--upgrade]
+pip install x-scaffold --user [--upgrade]
 ```
 
 ## Usage (apply)

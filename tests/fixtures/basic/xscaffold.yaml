@@ -1,0 +1,18 @@
+parameters:
+  - name: Test
+    description: This is a Test
+    default: 1
+    validate: /d
+
+tasks:
+  - log: '{{ context.Test }}'
+  # - scaffold:
+  #     name: azweb76/test
+  # - fetch:
+  #     src: .
+  #     target: .
+  #     templates:
+  #       - path: cicd.yaml
+  #         tokens:
+  #           TEST: '{{ context.Test }}'
+  - shell: 'echo test'

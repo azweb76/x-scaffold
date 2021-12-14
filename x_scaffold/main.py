@@ -161,6 +161,20 @@ def render(template_name, context, template_dir):
     return template.render(env=os.environ, context=context, utils=utils)
 
 
+def render_text(text, context):
+    """Used to render a Jinja template."""
+
+    env = Environment()
+    env.filters['formatlist'] = format_list
+    env.filters['yaml'] = yaml_format
+    env.filters['json'] = json_format
+    utils = RenderUtils()
+
+    template = env.from_string(text)
+
+    return template.render(env=os.environ, context=context, utils=utils)
+
+
 def render_file(path, context):
     """Used to render a Jinja template."""
 
@@ -181,6 +195,10 @@ def is_enabled(options):
         elif 'notequals' in enabledif:
             return value != enabledif['notequals']
     return True
+
+
+def read_input(s):
+    return input(s)
 
 
 class Prompt:
@@ -204,14 +222,14 @@ class Prompt:
 
         required = prompt.get('required', False)
         while True:
-            s = term_color('%s: ' % prompt['text'].format(
+            s = term_color('%s: ' % prompt['description'].format(
                 default=default, env=os.environ), color.BOLD)
-            if 'description' in prompt:
-                desc = term_color('%s' % prompt['description'], color.ITALIC)
-                sys.stdout.write('%s\n' % desc)
+            # if 'description' in prompt:
+            #     desc = term_color('%s' % prompt['description'], color.ITALIC)
+            #     sys.stdout.write('%s\n' % desc)
 
             if 'choices' in prompt:
-                s = term_color('%s: ' % prompt['text'].format(
+                s = term_color('%s: ' % prompt['description'].format(
                     default=default), color.BOLD)
                 sys.stdout.write('%s\n\n' % s)
 
@@ -230,7 +248,7 @@ class Prompt:
                         opt['kw'] = opt['kw'].ljust(max_len)
                         sys.stdout.write('[{kw}] {t}\n'.format(**opt))
 
-                    d = input(term_color('\nchoice: ', color.BOLD))
+                    d = read_input(term_color('\nchoice: ', color.BOLD))
 
                     for c in choices:
                         if d in c['keywords']:
@@ -246,7 +264,7 @@ class Prompt:
                 if prompt.get('secure', False):
                     d = getpass.getpass(prompt=s)
                 else:
-                    d = input(s)
+                    d = read_input(s)
 
             if d == '' or d is None:
                 if not required:
@@ -293,6 +311,8 @@ class ScaffoldLoader(yaml.Loader):
         else:
             return fn()
 
+    
+
     def prompt(self, node):
         item = self.construct_mapping(node, 9999)
 
@@ -314,6 +334,78 @@ def convert(v, type):
         return known_types[type](v)
     return str(v)
 
+
+def read_parameter(prompt):
+    default = prompt.get('default', None)
+    if isinstance(default, str):
+        default = default.format(env=os.environ)
+
+    if not is_enabled(prompt):
+        return default
+
+    required = prompt.get('required', False)
+    while True:
+        s = term_color('%s: ' % prompt['description'].format(
+            default=default, env=os.environ), color.BOLD)
+        # if 'description' in prompt:
+        #     desc = term_color('%s' % prompt['description'], color.ITALIC)
+        #     sys.stdout.write('%s\n' % desc)
+
+        if 'choices' in prompt:
+            s = term_color('%s: ' % prompt['description'].format(
+                default=default), color.BOLD)
+            sys.stdout.write('%s\n\n' % s)
+
+            choices = prompt['choices']
+            while True:
+                opts = []
+                max_len = 0
+                for c in choices:
+                    keywords = ', '.join(c['keywords'])
+                    if len(keywords) > max_len:
+                        max_len = len(keywords)
+                    opts.append({'kw': keywords, 't': c['text']})
+
+                for opt in opts:
+                    s = '%s' % c['text']
+                    opt['kw'] = opt['kw'].ljust(max_len)
+                    sys.stdout.write('[{kw}] {t}\n'.format(**opt))
+
+                d = read_input(term_color('\nchoice: ', color.BOLD))
+
+                for c in choices:
+                    if d in c['keywords']:
+                        v = c.get('value', d)
+                        if isinstance(v, dict):
+                            v = defaultdict(
+                                lambda: '', c.get('default', {}), **v)
+                        return v
+
+                sys.stdout.write('\n%s please select a keyword on the left\n\n' %
+                                    term_color('[invalid choice] ', color.RED))
+        else:
+            if prompt.get('secure', False):
+                d = getpass.getpass(prompt=s)
+            else:
+                d = read_input(s)
+
+        if d == '' or d is None:
+            if not required:
+                return default
+            else:
+                sys.stdout.write(term_color('[required] ', color.RED))
+        else:
+            if 'validate' in prompt:
+                matches = re.match(prompt['validate'], d)
+                if matches is None:
+                    sys.stdout.write(term_color(
+                        '[invalid, %s] ' % prompt['validate'], color.RED))
+                    continue
+            if 'load' in prompt:
+                if prompt['load'] == 'yaml':
+                    with open(d, 'r') as fhd:
+                        return yaml.load(fhd, Loader=yaml.FullLoader)
+            return convert(d, prompt.get('type', 'str'))
 
 def main():
     try:
@@ -395,11 +487,13 @@ def config_cli(args):
 
 
 def log(s, context={}):
-    sys.stdout.write(s.format(**dict(color, **context)))
+    sys.stdout.write(
+        render_text(s, context)
+    )
 
 
 def execute_command(context, pkg_dir, commands):
-    cmds = '\n'.join(commands).format(**context)
+    cmds = commands.format(**context)
     term_colors = dict_to_str(color, 'TERM_%s="%s"\n')
     cmd = """
 set +x -ae
@@ -454,47 +548,58 @@ def rm_rf(d):
 
 
 def process_prompts(d):
-    for x in d:
-        if isinstance(d[x], Prompt):
-            d[x] = d[x].get()
-        elif isinstance(d[x], dict):
-            process_prompts(d[x])
+    pass
+    # for x in d:
+    #     if isinstance(d[x], Prompt):
+    #         d[x] = read_parameter(d[x].get()
+    #     elif isinstance(d[x], dict):
+    #         process_prompts(d[x])
+
+
+def process_parameters(parameters, context):
+    for parameter in parameters:
+        context[parameter['name']] = read_parameter(parameter)
 
 
 def execute_scaffold(parent_context, args, todos, notes):
-    if os.path.exists(args.package):
+    tempdir = args.get('temp', tempfile.gettempdir())
+    package = args['package']
+    version = args.get('version', 'main')
+    name = 'xscaffold'
+    url = 'github.com'
+    if os.path.exists(package):
         sys.stdout.write(
-            term_color('[info] using local package \'%s\'...' % args.package, color.YELLOW) + '\n')
-        pkg_dir = args.package
+            term_color('[info] using local package \'%s\'...' % package, color.YELLOW) + '\n')
+        pkg_dir = package
     else:
-        pkg_dir = os.path.join(args.temp, args.package)
+        pkg_dir = os.path.join(tempdir, package)
 
         rc = 9999
         if os.path.exists(pkg_dir):
-            log('{YELLOW}[git] updating %s package...{END}\n' % args.package)
+            log('{YELLOW}[git] updating %s package...{END}\n' % package)
             rc = os.system(
                 """(cd {pkg_dir} && git pull >/dev/null 2>&1)""".format(pkg_dir=pkg_dir))
             if rc != 0:
-                log('{RED}[error]{YELLOW} package %s is having issues, repairing...{END}\n' % args.package)
+                log('{RED}[error]{YELLOW} package %s is having issues, repairing...{END}\n' % package)
                 rm_rf(pkg_dir)
 
         if rc != 0:
             sys.stdout.write(
-                term_color('[git] pulling %s package...' % args.package, color.YELLOW) + '\n')
+                term_color('[git] pulling %s package...' % package, color.YELLOW) + '\n')
             rc = os.system("""
         git clone {url}/{package} {pkg_dir} >/dev/null 2>&1
-        """.format(pkg_dir=pkg_dir, url=args.url, package=args.package))
+        """.format(pkg_dir=pkg_dir, url=url, package=package))
         if rc != 0:
             sys.stdout.write(
-                'Failed to pull scaffold package %s' % args.package)
+                'Failed to pull scaffold package %s' % package)
 
         rc = os.system("""(cd {pkg_dir} && git checkout -f {version} >/dev/null 2>&1)""".format(
-            version=args.version, pkg_dir=pkg_dir))
+            version=version, pkg_dir=pkg_dir))
         if rc != 0:
-            sys.stdout.write('Failed to load version %s' % args.version)
+            sys.stdout.write('Failed to load version %s' % version)
 
     sys.path.append(pkg_dir)
-    scaffold_file = os.path.join(pkg_dir, '%s.yaml' % args.name)
+    scaffold_file = os.path.join(pkg_dir, '%s.yaml' % name)
     if os.path.exists(scaffold_file):
         with open(scaffold_file, 'r') as fhd:
             config = yaml.load({
@@ -505,7 +610,8 @@ def execute_scaffold(parent_context, args, todos, notes):
         _log.warning('scaffold file %s not found', scaffold_file)
         config = {}
 
-    if args.extend_context:
+    extend_context = False
+    if extend_context:
         context = defaultdict(lambda: '', parent_context,
                               **args.extend_context)
     else:
@@ -513,10 +619,11 @@ def execute_scaffold(parent_context, args, todos, notes):
         context['parent'] = parent_context
 
     process_prompts(context)
+    process_parameters(config.get('parameters', []), context)
     files = config.get('files', [])
 
     context['pkg_dir'] = pkg_dir
-    render_files(context, pkg_dir, files)
+    #render_files(context, pkg_dir, files)
 
     tasks = config.get('tasks', [])
     for task in tasks:
@@ -524,25 +631,24 @@ def execute_scaffold(parent_context, args, todos, notes):
             if 'task' in task:
                 sys.stdout.write(term_color('[task] %s' % task[
                                  'task'], color.CYAN) + '\n')
-            if 'files' in task:
-                render_files(context, pkg_dir, task['files'])
-            if 'exec' in task:
-                execute_command(context, pkg_dir, task['exec'])
+            if 'copy' in task:
+                render_files(context, pkg_dir, task['copy'])
+            if 'shell' in task:
+                execute_command(context, pkg_dir, task['shell'])
             if 'modules' in task:
                 execute_modules(context, pkg_dir, task['modules'])
             if 'scaffold' in task:
                 scaffold = AttributeDict(dict({
-                    'url': args.url,
-                    'temp': args.temp,
-                    'version': args.version,
-                    'package': args.package,
-                    'extend_context': args.extend_context
+                    'url': url,
+                    'temp': tempdir,
+                    'version': version,
+                    'package': package,
+                    'extend_context': extend_context
                 }, **task['scaffold']))
 
                 context = execute_scaffold(context, scaffold, todos, notes)
             if 'log' in task:
-                sys.stdout.write(term_color(
-                    '%s' % task['log'].format(**context), color.YELLOW) + '\n')
+                log(task['log'], context)
             if 'todo' in task:
                 todo = task['todo']
                 if isinstance(todo, list):
@@ -555,7 +661,7 @@ def execute_scaffold(parent_context, args, todos, notes):
         notes.append(config['notes'])
 
     sys.stdout.write(term_color('[done] scaffolding %s::%s complete!' % (
-        args.package, args.name), color.CYAN) + '\n')
+        package, name), color.CYAN) + '\n')
 
     return context
 

@@ -1,10 +1,5 @@
-import plugins
+from x_scaffold.context import ScaffoldContext
 
 
-class PluginA(plugins.Base):
-
-    def __init__(self):
-        pass
-
-    def start(self):
-        print("Plugin A")
+def run(ctx: ScaffoldContext, task: dict):
+    pass

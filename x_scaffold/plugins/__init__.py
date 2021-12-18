@@ -1,18 +1,17 @@
-from inspect import isclass
 from pkgutil import iter_modules
 from pathlib import Path
 from importlib import import_module
-import sys
+
 
 def load_plugins():
     """Load all plugins in the plugins directory"""
     path = get_path_to_plugins()
     path = Path(path)
-    modules = {}
+    modules = []
     for _, name, _ in iter_modules([path]):
         if not name.startswith('__'):
             module = import_module(f'.{name}', package=__name__)
-            modules[name] = module
+            modules.append(module)
     return modules
 
 def get_path_to_plugins():

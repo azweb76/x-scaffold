@@ -1,11 +1,20 @@
 parameters:
-  - name: Test
+  - name: fname
     description: This is a Test
-    default: 1
-    validate: /d
+    default: jane
+    validate: '[a-zA-Z0-9]'
 
-tasks:
-  - log: '{{ context.Test }}'
+context:
+  lname: doe
+
+steps:
+  - log: '{{ context.fname }}'
+  - set:
+      fullname: '{{context.fname}} {{context.lname}}'
+  - scaffold:
+      package: '{{context.helloworldPackage}}'
+      context:
+        name: '{{context.fullname}}'
   # - scaffold:
   #     name: azweb76/test
   # - fetch:

@@ -1,5 +1,11 @@
 import os
 
+from ..context import ScaffoldContext
+
+from ..steps import ScaffoldStep
+from ..runtime import ScaffoldRuntime
+from ..plugin import ScaffoldPluginContext
+
 color = {
     'PURPLE': '\033[35m',
     'CYAN':  '\033[36m',
@@ -13,18 +19,25 @@ color = {
     'END':  '\033[0m',
 }
 
-def run(context, task):
-    commands = task
-    cmds = commands.format(**context)
-    term_colors = dict_to_str(color, 'TERM_%s="%s"\n')
-    cmd = """
+
+def init(context: ScaffoldPluginContext):
+    context.add_step('shell', ShellStep())
+
+
+class ShellStep(ScaffoldStep):
+    def run(self, context: ScaffoldContext, step: dict, runtime: ScaffoldRuntime):
+        commands = step
+        cmds = commands.format(**context)
+        term_colors = dict_to_str(color, 'TERM_%s="%s"\n')
+        cmd = """
 set +x -ae
 %s
 %s
 """ % (term_colors, cmds)
-    rc = os.system(cmd)
-    if rc != 0:
-        raise RuntimeError('Failed to execute command')
+        rc = os.system(cmd)
+        if rc != 0:
+            raise RuntimeError('Failed to execute command')
+
 
 def dict_to_str(d, fmt='%s=%s\n'):
     s = ''

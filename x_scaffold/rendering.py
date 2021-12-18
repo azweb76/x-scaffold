@@ -5,6 +5,8 @@ import yaml
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
 
+from x_scaffold.context import ScaffoldContext
+
 class RenderUtils(object):  # pylint: disable=R0903
     """Template utilities."""
 
@@ -76,7 +78,7 @@ def render(template_name, context, template_dir):
     return template.render(env=os.environ, context=context, utils=utils)
 
 
-def render_text(text, context):
+def render_text(text, context: ScaffoldContext):
     """Used to render a Jinja template."""
 
     env = Environment()
@@ -87,4 +89,13 @@ def render_text(text, context):
 
     template = env.from_string(text)
 
-    return template.render(env=os.environ, context=context, utils=utils)
+    return template.render(env=context.environ, context=context, utils=utils)
+
+def render_options(options: dict, context: ScaffoldContext):
+    opts = options.copy()
+    for k, v in opts.items():
+        if isinstance(v, str):
+            opts[k] = render_text(v, context)
+        elif isinstance(v, dict):
+            opts[k] = render_options(v, context)
+    return opts

@@ -1,2 +1,7 @@
+from typing import Dict, List
+
+
 class ScaffoldContext(dict):
-    pass
+    notes: List[str] = []
+    todos: List[str] = []
+    environ: Dict[str, str] = {}

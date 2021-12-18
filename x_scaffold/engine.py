@@ -17,9 +17,12 @@ import importlib
 from collections import defaultdict
 from fnmatch import fnmatch
 
-from x_scaffold.context import ScaffoldContext
-from x_scaffold.plugins import load_plugins
-from x_scaffold.rendering import render_text
+from .context import ScaffoldContext
+from .runtime import ScaffoldRuntime
+from .plugins import load_plugins
+from .rendering import render_text
+from .steps import ScaffoldStep
+from .plugin import ScaffoldPluginContext
 
 _log = logging.getLogger(__name__)
 
@@ -254,7 +257,7 @@ def convert(v, type):
     return str(v)
 
 
-def read_parameter(prompt):
+def read_parameter(prompt, runtime: ScaffoldRuntime):
     default = prompt.get('default', None)
     if isinstance(default, str):
         default = default.format(env=os.environ)
@@ -262,16 +265,18 @@ def read_parameter(prompt):
     if not is_enabled(prompt):
         return default
 
+    name = prompt.get('name', 'parameter')
     required = prompt.get('required', False)
+    description = prompt.get('description', name)
     while True:
-        s = term_color('%s: ' % prompt['description'].format(
+        s = term_color('%s: ' % description.format(
             default=default, env=os.environ), color.BOLD)
         # if 'description' in prompt:
         #     desc = term_color('%s' % prompt['description'], color.ITALIC)
         #     sys.stdout.write('%s\n' % desc)
 
         if 'choices' in prompt:
-            s = term_color('%s: ' % prompt['description'].format(
+            s = term_color('%s: ' % description.format(
                 default=default), color.BOLD)
             sys.stdout.write('%s\n\n' % s)
 
@@ -290,7 +295,8 @@ def read_parameter(prompt):
                     opt['kw'] = opt['kw'].ljust(max_len)
                     sys.stdout.write('[{kw}] {t}\n'.format(**opt))
 
-                d = read_input(term_color('\nchoice: ', color.BOLD))
+                d = None #read_input(term_color('\nchoice: ', color.BOLD))
+
 
                 for c in choices:
                     if d in c['keywords']:
@@ -303,10 +309,7 @@ def read_parameter(prompt):
                 sys.stdout.write('\n%s please select a keyword on the left\n\n' %
                                     term_color('[invalid choice] ', color.RED))
         else:
-            if prompt.get('secure', False):
-                d = getpass.getpass(prompt=s)
-            else:
-                d = read_input(s)
+            d = runtime.ask(prompt)
 
         if d == '' or d is None:
             if not required:
@@ -437,9 +440,6 @@ def config_cli(args):
 #         execute_fn = load_module(m)
 #         execute_fn(context, pkg_dir, m)
 
-def log(s, context={}):
-    pass
-
 
 def apply_cli(args):
 
@@ -447,17 +447,17 @@ def apply_cli(args):
     notes = []
     context = execute_scaffold(color, args, todos, notes)
 
-    if len(todos) > 0:
-        sys.stdout.write('\n=== Follow-up Checklist ===\n\n')
-        for todo in todos:
-            log('[ ] %s\n' % todo, context=context)
-        sys.stdout.write('\n')
+    # if len(todos) > 0:
+    #     sys.stdout.write('\n=== Follow-up Checklist ===\n\n')
+    #     for todo in todos:
+    #         log('[ ] %s\n' % todo, context=context)
+    #     sys.stdout.write('\n')
 
-    if len(notes) > 0:
-        sys.stdout.write('\n=== Notes ===\n\n')
-        for note in notes:
-            log('%s\n' % note, context=context)
-        sys.stdout.write('\n\n')
+    # if len(notes) > 0:
+    #     sys.stdout.write('\n=== Notes ===\n\n')
+    #     for note in notes:
+    #         log('%s\n' % note, context=context)
+    #     sys.stdout.write('\n\n')
 
 
 def rm_rf(d):
@@ -478,47 +478,54 @@ def process_prompts(d):
     #         process_prompts(d[x])
 
 
-def process_parameters(parameters, context):
+def process_parameters(parameters, context: ScaffoldContext, runtime: ScaffoldRuntime):
     for parameter in parameters:
-        context[parameter['name']] = read_parameter(parameter)
+        parameter_name = parameter['name']
+        if parameter_name in context:
+            context[parameter_name] = context[parameter_name]
+        else:
+            context[parameter_name] = read_parameter(parameter, runtime)
 
 
-def execute_scaffold(parent_context, args, todos, notes):
-    tempdir = args.get('temp', tempfile.gettempdir())
-    package = args['package']
-    version = args.get('version', 'main')
+def run(context: ScaffoldContext, options, runtime: ScaffoldRuntime):
+    execute_scaffold(context, options, runtime)
+
+
+def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime):
+    tempdir = options.get('temp', tempfile.gettempdir())
+    package = options['package']
+    version = options.get('version', 'main')
     name = 'xscaffold'
     url = 'github.com'
     if os.path.exists(package):
-        sys.stdout.write(
-            term_color('[info] using local package \'%s\'...' % package, color.YELLOW) + '\n')
+        runtime.log(
+            '[info] using local package \'%s\'...' % package + '\n')
         pkg_dir = package
     else:
-        pkg_dir = os.path.join(tempdir, package)
+        pkg_dir = os.path.join(tempdir, f'${package}@{version}')
 
         rc = 9999
         if os.path.exists(pkg_dir):
-            log('{YELLOW}[git] updating %s package...{END}\n' % package)
+            runtime.log('{YELLOW}[git] updating %s package...{END}\n' % package)
             rc = os.system(
                 """(cd {pkg_dir} && git pull >/dev/null 2>&1)""".format(pkg_dir=pkg_dir))
             if rc != 0:
-                log('{RED}[error]{YELLOW} package %s is having issues, repairing...{END}\n' % package)
+                runtime.log('{RED}[error]{YELLOW} package %s is having issues, repairing...{END}\n' % package)
                 rm_rf(pkg_dir)
 
         if rc != 0:
-            sys.stdout.write(
-                term_color('[git] pulling %s package...' % package, color.YELLOW) + '\n')
+            runtime.log('[git] pulling %s package...' % package + '\n')
             rc = os.system("""
         git clone {url}/{package} {pkg_dir} >/dev/null 2>&1
         """.format(pkg_dir=pkg_dir, url=url, package=package))
         if rc != 0:
-            sys.stdout.write(
+            runtime.log(
                 'Failed to pull scaffold package %s' % package)
 
         rc = os.system("""(cd {pkg_dir} && git checkout -f {version} >/dev/null 2>&1)""".format(
             version=version, pkg_dir=pkg_dir))
         if rc != 0:
-            sys.stdout.write('Failed to load version %s' % version)
+            runtime.log('Failed to load version %s' % version)
 
     sys.path.append(pkg_dir)
     scaffold_file = os.path.join(pkg_dir, '%s.yaml' % name)
@@ -527,27 +534,47 @@ def execute_scaffold(parent_context, args, todos, notes):
             config = yaml.load(fhd, Loader=yaml.FullLoader)
     else:
         _log.warning('scaffold file %s not found', scaffold_file)
-        config = {}
+        config = {
+            'steps': [
+                {
+                    'fetch': {
+                        'source': '.',
+                        'target': '.'
+                    }
+                }
+            ]
+        }
 
-    extend_context = False
-    if extend_context:
-        context = defaultdict(lambda: '', parent_context,
-                              **args.extend_context)
-    else:
-        context = ScaffoldContext()
-        context['parent'] = parent_context
+    plugin_context = ScaffoldPluginContext(
+        config.get('plugins', {})
+    )
+    plugins: list = load_plugins()
+    for plugin in plugins:
+        plugin.init(plugin_context)
 
-    process_parameters(config.get('parameters', []), context)
+    # extend_context = False
+    # if extend_context:
+    #     context = defaultdict(lambda: '', parent_context,
+    #                           **args.extend_context)
+    # else:
+    context.update(config.get('context', {}))
+    #context = ScaffoldContext(config.get('context', {}))
+        #context['parent'] = parent_context
 
-    context['pkg_dir'] = pkg_dir
-    plugins: dict = load_plugins()
+    process_parameters(config.get('parameters', []), context, runtime)
 
-    tasks: dict = config.get('tasks', [])
-    task: dict
-    for task in tasks:
-        for task_name in task:
-            plugin = plugins[task_name]
-            plugin.run(context, task[task_name])
+    context['__package'] = {
+        'path': pkg_dir,
+        'options': options
+    }
+
+    steps: list = config.get('steps', [])
+    step: dict
+
+    for step in steps:
+        for step_name in step:
+            plugin_step = plugin_context.steps[step_name]
+            plugin_step.run(context, step[step_name], runtime)
 
             # if 'task' in task:
             #     sys.stdout.write(term_color('[task] %s' % task[
@@ -578,11 +605,11 @@ def execute_scaffold(parent_context, args, todos, notes):
             #     else:
             #         todos.append(todo)
 
-    if 'notes' in config:
-        notes.append(config['notes'])
+    # if 'notes' in config:
+    #     notes.append(config['notes'])
 
-    sys.stdout.write(term_color('[done] scaffolding %s::%s complete!' % (
-        package, name), color.CYAN) + '\n')
+    # runtime.log(term_color('[done] scaffolding %s::%s complete!' % (
+    #     package, name), color.CYAN) + '\n')
 
     return context
 

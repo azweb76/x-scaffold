@@ -6,9 +6,9 @@ from ..rendering import render_text
 
 
 def init(context: ScaffoldPluginContext):
-    context.add_step("set", SetStep())
-    context.add_step("add-note", AddNoteStep())
-    context.add_step("add-todo", AddTodoStep())
+    context.add_step("set_context", SetStep())
+    context.add_step("add_note", AddNoteStep())
+    context.add_step("add_todo", AddTodoStep())
 
 
 class SetStep(ScaffoldStep):
@@ -18,10 +18,12 @@ class SetStep(ScaffoldStep):
             context[context_name] = render_text(
                 context_names[context_name], context)
 
+
 class AddNoteStep(ScaffoldStep):
     def run(self, context: ScaffoldContext, step: str, runtime: ScaffoldRuntime):
         message = render_text(step, context)
         context.notes.append(message)
+
 
 class AddTodoStep(ScaffoldStep):
     def run(self, context: ScaffoldContext, step: str, runtime: ScaffoldRuntime):

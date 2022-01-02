@@ -21,7 +21,7 @@ class Scaffolder(ScaffoldStep):
         else:
             actual_context = context
         execute_scaffold(actual_context, options, runtime)
-        # if has_private_context:
-        #     context.todos.extend(actual_context.todos)
-        #     context.notes.extend(actual_context.notes)
+        if has_private_context:
+            context.todos.extend(actual_context.todos)
+            context.notes.extend(actual_context.notes)
         context['__package'] = orig_package

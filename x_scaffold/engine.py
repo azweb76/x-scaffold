@@ -329,68 +329,6 @@ def read_parameter(prompt, runtime: ScaffoldRuntime):
                         return yaml.load(fhd, Loader=yaml.FullLoader)
             return convert(d, prompt.get('type', 'str'))
 
-def main():
-    try:
-        options = {}
-        set_readline()
-        scaffold_file = os.path.expanduser('~/.xscaffold')
-        if os.path.exists(scaffold_file):
-            with open(scaffold_file, 'r') as fhd:
-                options = yaml.load(fhd, Loader=yaml.FullLoader)
-
-        parser = argparse.ArgumentParser(
-            description='Scaffold a directory of files.')
-
-        parser.add_argument(
-            '-l',
-            '--log-level',
-            dest='log_level',
-            default='INFO',
-            choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-            help='optional. Set the log level.')
-
-        parser.add_argument('-u', '--url', default=options.get('url', 'https://github.com'), help='github repo url')
-        parser.add_argument('-t', '--temp', default=options.get('temp_dir', tempfile.gettempdir()), help='temporary directory')
-
-        subparsers = parser.add_subparsers(help='actions')
-
-        parser_a = subparsers.add_parser('apply', help='scaffold a directory')
-        parser_a.add_argument('package', help='package name')
-        parser_a.add_argument(
-            '-v', '--version', default='master', help='package version')
-        parser_a.add_argument('-n', '--name', default='scaffold',
-                              help='name of scaffold file (<name>.yaml)')
-        parser_a.add_argument('-x', '--extend-context', default=None,
-                              help='allow child packages to extend context')
-        parser_a.set_defaults(func=apply_cli)
-
-        parser_a = subparsers.add_parser(
-            'config', help='configure this process')
-        parser_a.add_argument('action', default='view',
-                              help='save or view configuration')
-        parser_a.set_defaults(func=config_cli)
-
-        parser_a = subparsers.add_parser(
-            'upgrade', help='upgrade x-scaffold using pip')
-        parser_a.set_defaults(func=upgrade_cli)
-
-        args = parser.parse_args()
-        logging.getLogger('requests').setLevel(logging.ERROR)
-        logging.basicConfig(level=getattr(logging, args.log_level))
-
-        args.func(args)
-    except KeyboardInterrupt:
-        exit(0)
-
-
-def upgrade_cli(args):
-    rc = os.system(
-        'pip install x-scaffold --upgrade >/dev/null 2>&1')
-    if rc == 0:
-        log('x-scaffold was {GREEN}successfully{END} upgraded.')
-    else:
-        log('x-scaffold {RED}failed{END} to upgrade [rc=%s].' % rc)
-
 
 def config_cli(args):
     options = {}
@@ -441,25 +379,6 @@ def config_cli(args):
 #         execute_fn(context, pkg_dir, m)
 
 
-def apply_cli(args):
-
-    todos = []
-    notes = []
-    context = execute_scaffold(color, args, todos, notes)
-
-    # if len(todos) > 0:
-    #     sys.stdout.write('\n=== Follow-up Checklist ===\n\n')
-    #     for todo in todos:
-    #         log('[ ] %s\n' % todo, context=context)
-    #     sys.stdout.write('\n')
-
-    # if len(notes) > 0:
-    #     sys.stdout.write('\n=== Notes ===\n\n')
-    #     for note in notes:
-    #         log('%s\n' % note, context=context)
-    #     sys.stdout.write('\n\n')
-
-
 def rm_rf(d):
     for path in (os.path.join(d, f) for f in os.listdir(d)):
         if os.path.isdir(path):
@@ -494,15 +413,27 @@ def run(context: ScaffoldContext, options, runtime: ScaffoldRuntime):
 def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime):
     tempdir = options.get('temp', tempfile.gettempdir())
     package = options['package']
-    version = options.get('version', 'main')
-    name = 'xscaffold'
-    url = 'github.com'
+
+
+    name = options.get('name', 'xscaffold')
+
     if os.path.exists(package):
         runtime.log(
             '[info] using local package \'%s\'...' % package + '\n')
         pkg_dir = package
     else:
-        pkg_dir = os.path.join(tempdir, f'${package}@{version}')
+        package_parts = package.split('@')
+        if len(package_parts) == 1:
+            package_name = package_parts[0]
+            package_version = 'main'
+        else:
+            package_name = package_parts[0]
+            package_version = package_parts[1]
+        package_name_parts = package_name.split('/')
+        if len(package_name_parts) <= 2:
+            package_name_parts = ['github.com'] + package_name_parts
+            package_name = '/'.join(package_name_parts)
+        pkg_dir = os.path.join(tempdir, f'${package_name}@{package_version}')
 
         rc = 9999
         if os.path.exists(pkg_dir):
@@ -515,17 +446,16 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
 
         if rc != 0:
             runtime.log('[git] pulling %s package...' % package + '\n')
-            rc = os.system("""
-        git clone {url}/{package} {pkg_dir} >/dev/null 2>&1
-        """.format(pkg_dir=pkg_dir, url=url, package=package))
+            rc = os.system(f"""
+        git clone {package_name} {pkg_dir} >/dev/null 2>&1
+        """)
         if rc != 0:
             runtime.log(
                 'Failed to pull scaffold package %s' % package)
 
-        rc = os.system("""(cd {pkg_dir} && git checkout -f {version} >/dev/null 2>&1)""".format(
-            version=version, pkg_dir=pkg_dir))
+        rc = os.system(f"""(cd {pkg_dir} && git checkout -f {package_version} >/dev/null 2>&1)""")
         if rc != 0:
-            runtime.log('Failed to load version %s' % version)
+            runtime.log('Failed to load version %s' % package_version)
 
     sys.path.append(pkg_dir)
     scaffold_file = os.path.join(pkg_dir, '%s.yaml' % name)
@@ -534,16 +464,7 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
             config = yaml.load(fhd, Loader=yaml.FullLoader)
     else:
         _log.warning('scaffold file %s not found', scaffold_file)
-        config = {
-            'steps': [
-                {
-                    'fetch': {
-                        'source': '.',
-                        'target': '.'
-                    }
-                }
-            ]
-        }
+        config = {'steps': [ { 'fetch': {  }}]}
 
     plugin_context = ScaffoldPluginContext(
         config.get('plugins', {})
@@ -610,6 +531,9 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
 
     # runtime.log(term_color('[done] scaffolding %s::%s complete!' % (
     #     package, name), color.CYAN) + '\n')
+
+    runtime.print_todos(context)
+    runtime.print_notes(context)
 
     return context
 

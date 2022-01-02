@@ -91,11 +91,36 @@ def render_text(text, context: ScaffoldContext):
 
     return template.render(env=context.environ, context=context, utils=utils)
 
+def render_value(value, context: ScaffoldContext):
+    if isinstance(value, str):
+        return render_text(value, context)
+    elif isinstance(value, list):
+        v_list: list[str] = []
+        for x in value:
+            v_list.append(render_value(x, context))
+        return v_list
+    elif isinstance(value, dict):
+        opts = value.copy()
+        for k, v in opts.items():
+            opts[k] = render_value(v, context)
+        return opts
+    else:
+        return value
+
 def render_options(options: dict, context: ScaffoldContext):
-    opts = options.copy()
-    for k, v in opts.items():
-        if isinstance(v, str):
-            opts[k] = render_text(v, context)
-        elif isinstance(v, dict):
-            opts[k] = render_options(v, context)
-    return opts
+    return render_value(options, context)
+
+def render_token_file(path: str, tokens: dict):
+    """Used to render a Token File."""
+
+    with open(path, 'r') as file_handle:
+        content = file_handle.read()
+
+    return render_tokens(content, tokens)
+
+def render_tokens(content: str, tokens: dict):
+    """Used to render a Token File."""
+
+    for token in tokens:
+        content = content.replace(token, tokens[token])
+    return content

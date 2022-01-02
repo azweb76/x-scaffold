@@ -9,19 +9,42 @@ context:
 
 steps:
   - log: '{{ context.fname }}'
-  - set:
+  - set_context:
       fullname: '{{context.fname}} {{context.lname}}'
   - scaffold:
       package: '{{context.helloworldPackage}}'
       context:
         name: '{{context.fullname}}'
+  - add_note: test note from basic
+  - add_todo: test todo from basic
+  # - github_organization:
+  #     name: azwebmaster
+  #     token: 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
+  #     steps:
+  #       - create_repo:
+  #           name: test-repo2
+  # - github_repository:
+  #     name: azwebmaster/test-repo2
+  #     token: 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
+  #     steps:
+  #       - set_topics:
+  #           - python
+  #           - scaffolding
+  #       - set:
+  #           delete_branch_on_merge: True
+        # - create_pr:
+        #     title: Test PR
+        #     head: test-branch
+        #     body: This is a test PR from xscaffold by {{ context.fullname }}
+        #     base: master
+
   # - scaffold:
   #     name: azweb76/test
-  # - fetch:
-  #     src: .
-  #     target: .
-  #     templates:
-  #       - path: cicd.yaml
-  #         tokens:
-  #           TEST: '{{ context.Test }}'
+  - fetch:
+      templates:
+        - path: tokens.txt
+          tokens:
+            FNAME: '{{ context.fname }}'
+            LNAME: '{{ context.lname }}'
+            FULLNAME: '{{ context.fullname }}'
   - shell: 'echo test'

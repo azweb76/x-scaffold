@@ -3,4 +3,5 @@ parameters:
     default: world
 
 steps:
-  - add-note: 'Hello {{ context.name }}!'
+  - add_note: 'Hello {{ context.name }}!'
+  - add_todo: This is a todo

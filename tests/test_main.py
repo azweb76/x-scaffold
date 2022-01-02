@@ -1,5 +1,6 @@
+from tempfile import gettempdir, tempdir
 from unittest.mock import patch
-from x_scaffold import engine, plugins
+from x_scaffold import engine
 import tests
 from x_scaffold.runtime import ScaffoldRuntime
 from x_scaffold.context import ScaffoldContext
@@ -13,10 +14,12 @@ def test_main():
         def log(self, message: str):
             self.logs.append(message)
 
+    tmpdir = gettempdir()
     helloworldPackage = tests.get_fixture('helloworld')
     runtime = TestRuntime()
     context = ScaffoldContext({
-        'helloworldPackage': helloworldPackage
+        'helloworldPackage': helloworldPackage,
+        '__target': tmpdir
     })
 
     package = tests.get_fixture('basic')
@@ -34,10 +37,13 @@ def test_main():
             'options': {
                 'package': package
             }
-        }
+        },
+        '__target': tmpdir
     }
     assert context.notes == [
-        'Hello john doe!'
+        'Hello john doe!',
+        'test note from basic'
     ]
-    assert context.todos == []
-    #mock_write.assert_called_once_with({})
+    assert context.todos == [
+        'test todo from basic'
+    ]

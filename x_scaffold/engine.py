@@ -396,6 +396,16 @@ def process_prompts(d):
     #     elif isinstance(d[x], dict):
     #         process_prompts(d[x])
 
+def locate_scaffold_file(path, name):
+    paths = [
+        os.path.join(path, f'{name}.yml'),
+        os.path.join(path, f'{name}.yaml'),
+        os.path.join(path, f'{name}.json')
+    ]
+    for p in paths:
+        if os.path.exists(p):
+            return p
+    return None
 
 def process_parameters(parameters, context: ScaffoldContext, runtime: ScaffoldRuntime):
     for parameter in parameters:
@@ -413,7 +423,6 @@ def run(context: ScaffoldContext, options, runtime: ScaffoldRuntime):
 def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime):
     tempdir = options.get('temp', tempfile.gettempdir())
     package = options['package']
-
 
     name = options.get('name', 'xscaffold')
 
@@ -433,7 +442,7 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
         if len(package_name_parts) <= 2:
             package_name_parts = ['github.com'] + package_name_parts
             package_name = '/'.join(package_name_parts)
-        pkg_dir = os.path.join(tempdir, f'${package_name}@{package_version}')
+        pkg_dir = os.path.join(tempdir, f'{package_name}@{package_version}')
 
         rc = 9999
         if os.path.exists(pkg_dir):
@@ -447,7 +456,7 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
         if rc != 0:
             runtime.log('[git] pulling %s package...' % package + '\n')
             rc = os.system(f"""
-        git clone {package_name} {pkg_dir} >/dev/null 2>&1
+        git clone https://{package_name} {pkg_dir}
         """)
         if rc != 0:
             runtime.log(
@@ -458,12 +467,13 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
             runtime.log('Failed to load version %s' % package_version)
 
     sys.path.append(pkg_dir)
-    scaffold_file = os.path.join(pkg_dir, '%s.yaml' % name)
-    if os.path.exists(scaffold_file):
+    scaffold_file = locate_scaffold_file(pkg_dir, name)
+
+    if scaffold_file is not None:
         with open(scaffold_file, 'r') as fhd:
             config = yaml.load(fhd, Loader=yaml.FullLoader)
     else:
-        _log.warning('scaffold file %s not found', scaffold_file)
+        _log.warning('Scaffold file not found. Defaulting to fetch all.')
         config = {'steps': [ { 'fetch': {  }}]}
 
     plugin_context = ScaffoldPluginContext(
@@ -473,14 +483,7 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
     for plugin in plugins:
         plugin.init(plugin_context)
 
-    # extend_context = False
-    # if extend_context:
-    #     context = defaultdict(lambda: '', parent_context,
-    #                           **args.extend_context)
-    # else:
     context.update(config.get('context', {}))
-    #context = ScaffoldContext(config.get('context', {}))
-        #context['parent'] = parent_context
 
     process_parameters(config.get('parameters', []), context, runtime)
 
@@ -497,46 +500,7 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
             plugin_step = plugin_context.steps[step_name]
             plugin_step.run(context, step[step_name], runtime)
 
-            # if 'task' in task:
-            #     sys.stdout.write(term_color('[task] %s' % task[
-            #                      'task'], color.CYAN) + '\n')
-            # if 'copy' in task:
-            #     render_files(context, pkg_dir, task['copy'])
-            # if 'shell' in task:
-            #     execute_command(context, pkg_dir, task['shell'])
-            # if 'modules' in task:
-            #     execute_modules(context, pkg_dir, task['modules'])
-            # if 'scaffold' in task:
-            #     scaffold = AttributeDict(dict({
-            #         'url': url,
-            #         'temp': tempdir,
-            #         'version': version,
-            #         'package': package,
-            #         'extend_context': extend_context
-            #     }, **task['scaffold']))
-
-            #     context = execute_scaffold(context, scaffold, todos, notes)
-            # if 'log' in task:
-            #     log(task['log'], context)
-            # if 'todo' in task:
-            #     todo = task['todo']
-            #     if isinstance(todo, list):
-            #        for todo_item in todo:
-            #            todos.append(todo_item)
-            #     else:
-            #         todos.append(todo)
-
-    # if 'notes' in config:
-    #     notes.append(config['notes'])
-
-    # runtime.log(term_color('[done] scaffolding %s::%s complete!' % (
-    #     package, name), color.CYAN) + '\n')
-
     runtime.print_todos(context)
     runtime.print_notes(context)
 
     return context
-
-
-if __name__ == '__main__':
-    main()

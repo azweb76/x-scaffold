@@ -19,13 +19,13 @@ steps:
   - add_todo: test todo from basic
   # - github_organization:
   #     name: azwebmaster
-  #     token: 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
+  #     token: '{{ env.GITHUB_TOKEN }}'
   #     steps:
   #       - create_repo:
   #           name: test-repo2
   # - github_repository:
   #     name: azwebmaster/test-repo2
-  #     token: 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
+  #     token: '{{ env.GITHUB_TOKEN }}'
   #     steps:
   #       - set_topics:
   #           - python

@@ -1,13 +1,9 @@
 parameters:
   - name: ProjectName
     description: Name of the project
-
-context:
-  ProjectName: Dan
+    validate: '[a-zA-Z]+'
 
 steps:
-  - scaffold:
-      package: github.com/azweb76/docs@main
   - fetch:
       source: README.md
       templates:

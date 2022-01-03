@@ -1,6 +1,6 @@
 {
     "parameters": [
-        { "name": "FirstName" }
+        { "name": "FirstName", "validate": "[a-zA-Z]+" }
     ],
     "steps": [
         {

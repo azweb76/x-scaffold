@@ -32,21 +32,61 @@ class ScaffoldConsoleRuntime(ScaffoldRuntime):
     def ask(self, prompt):
         name = prompt.get('name')
         description = prompt.get('description', name)
+        if 'choices' in prompt:
+            choices = prompt['choices']
+            opts = []
+            max_len = 0
+            for c in choices:
+                if isinstance(c, str):
+                    opts.append({
+                        't': c,
+                        'kw': [c],
+                        'v': c
+                    })
+                else:
+                    keywords = ', '.join(c['keywords'])
+                    if len(keywords) > max_len:
+                        max_len = len(keywords)
+                    opts.append({
+                        'kw': c['keywords'],
+                        'kwt': keywords,
+                        't': c['text'],
+                        'v': c.get('value', c['text'])
+                    })
+
+            self.write(description + ': \n')
+            for opt in opts:
+                if 'kwt' in opt:
+                    opt['kwt'] = opt['kwt'].ljust(max_len)
+                    self.write('  - [{kwt}] {t}\n'.format(**opt))
+                else:
+                    self.write(f'  - {opt["t"]}\n')
+
+            choice = input('Choose: ')
+            while True:
+                for c in opts:
+                    if choice in c['kw']:
+                        return c['v']
+                self.write('{RED}[invalid choice]{END} Choose: ')
+                choice = sys.stdin.readline().strip()
+
         if prompt.get('secure', False):
-            return getpass(prompt=description)
+            return getpass(prompt=description + ': ')
         else:
-            return input(f'{description}: ')
+            self.write(description + ': ')
+            return sys.stdin.readline().strip()
     
     def write(self, message: str):
-        click.echo(message.format(**CLI_COLORS))
+        sys.stdout.write(message.format(**CLI_COLORS))
+        sys.stdout.flush()
 
     def print_todos(self, context: ScaffoldContext):
-        self.write('{BLUE}{BOLD}TODO:{END}')
+        self.write('{BLUE}{BOLD}TODO:{END}\n')
         for todo in context.todos:
-            self.write(f'  - {todo}')
+            self.write(f'  - {todo}\n')
 
     def print_notes(self, context: ScaffoldContext):
-        self.write('{GREEN}{BOLD}NOTES:{END}')
+        self.write('{GREEN}{BOLD}NOTES:{END}\n')
         for note in context.notes:
             self.write(f'  {note}\n')
 

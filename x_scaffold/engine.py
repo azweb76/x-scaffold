@@ -257,7 +257,7 @@ def convert(v, type):
     return str(v)
 
 
-def read_parameter(prompt, runtime: ScaffoldRuntime):
+def read_parameter(prompt, context, runtime: ScaffoldRuntime):
     default = prompt.get('default', None)
     if isinstance(default, str):
         default = default.format(env=os.environ)
@@ -268,48 +268,54 @@ def read_parameter(prompt, runtime: ScaffoldRuntime):
     name = prompt.get('name', 'parameter')
     required = prompt.get('required', False)
     description = prompt.get('description', name)
+
+    if 'if' in prompt:
+        enabled = render_text(prompt['if'], context)
+        if enabled.lower() != 'true':
+            return default
+    
     while True:
-        s = term_color('%s: ' % description.format(
-            default=default, env=os.environ), color.BOLD)
+        # s = term_color('%s: ' % description.format(
+        #     default=default, env=os.environ), color.BOLD)
         # if 'description' in prompt:
         #     desc = term_color('%s' % prompt['description'], color.ITALIC)
         #     sys.stdout.write('%s\n' % desc)
 
-        if 'choices' in prompt:
-            s = term_color('%s: ' % description.format(
-                default=default), color.BOLD)
-            sys.stdout.write('%s\n\n' % s)
+        # if 'choices' in prompt:
+        #     s = term_color('%s: ' % description.format(
+        #         default=default), color.BOLD)
+        #     sys.stdout.write('%s\n\n' % s)
 
-            choices = prompt['choices']
-            while True:
-                opts = []
-                max_len = 0
-                for c in choices:
-                    keywords = ', '.join(c['keywords'])
-                    if len(keywords) > max_len:
-                        max_len = len(keywords)
-                    opts.append({'kw': keywords, 't': c['text']})
+        #     choices = prompt['choices']
+        #     while True:
+        #         opts = []
+        #         max_len = 0
+        #         for c in choices:
+        #             keywords = ', '.join(c['keywords'])
+        #             if len(keywords) > max_len:
+        #                 max_len = len(keywords)
+        #             opts.append({'kw': keywords, 't': c['text']})
 
-                for opt in opts:
-                    s = '%s' % c['text']
-                    opt['kw'] = opt['kw'].ljust(max_len)
-                    sys.stdout.write('[{kw}] {t}\n'.format(**opt))
+        #         for opt in opts:
+        #             s = '%s' % c['text']
+        #             opt['kw'] = opt['kw'].ljust(max_len)
+        #             sys.stdout.write('[{kw}] {t}\n'.format(**opt))
 
-                d = None #read_input(term_color('\nchoice: ', color.BOLD))
+        #         d = None #read_input(term_color('\nchoice: ', color.BOLD))
 
 
-                for c in choices:
-                    if d in c['keywords']:
-                        v = c.get('value', d)
-                        if isinstance(v, dict):
-                            v = defaultdict(
-                                lambda: '', c.get('default', {}), **v)
-                        return v
+        #         for c in choices:
+        #             if d in c['keywords']:
+        #                 v = c.get('value', d)
+        #                 if isinstance(v, dict):
+        #                     v = defaultdict(
+        #                         lambda: '', c.get('default', {}), **v)
+        #                 return v
 
-                sys.stdout.write('\n%s please select a keyword on the left\n\n' %
-                                    term_color('[invalid choice] ', color.RED))
-        else:
-            d = runtime.ask(prompt)
+        #         sys.stdout.write('\n%s please select a keyword on the left\n\n' %
+        #                             term_color('[invalid choice] ', color.RED))
+        # else:
+        d = runtime.ask(prompt)
 
         if d == '' or d is None:
             if not required:
@@ -403,7 +409,6 @@ def locate_scaffold_file(path, name):
         os.path.join(path, f'{name}.json')
     ]
     for p in paths:
-        print(p)
         if os.path.exists(p):
             return p
     return None
@@ -414,7 +419,7 @@ def process_parameters(parameters, context: ScaffoldContext, runtime: ScaffoldRu
         if parameter_name in context:
             context[parameter_name] = context[parameter_name]
         else:
-            context[parameter_name] = read_parameter(parameter, runtime)
+            context[parameter_name] = read_parameter(parameter, context, runtime)
 
 
 def run(context: ScaffoldContext, options, runtime: ScaffoldRuntime):
@@ -497,10 +502,17 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
     steps: list = config.get('steps', [])
     step: dict
 
+    invalid_stepnames = ['if']
     for step in steps:
         for step_name in step:
-            plugin_step = plugin_context.steps[step_name]
-            plugin_step.run(context, step[step_name], runtime)
+            if step_name in plugin_context.steps:
+                if step_name not in invalid_stepnames:
+                    if 'if' in step:
+                        enabled = render_text(step['if'], context)
+                        if enabled.lower() == 'false':
+                            continue
+                    plugin_step = plugin_context.steps[step_name]
+                    plugin_step.run(context, step[step_name], runtime)
 
     runtime.print_todos(context)
     runtime.print_notes(context)

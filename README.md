@@ -1,1 +1,1 @@
-Sample readme for PROJECT_NAME
+Sample readme for Scaffold

@@ -1,0 +1,10 @@
+{
+    "parameters": [
+        { "name": "FirstName" }
+    ],
+    "steps": [
+        {
+            "add_note": "Hello {{FirstName}}"
+        }
+    ]
+}

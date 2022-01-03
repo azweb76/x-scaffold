@@ -2,9 +2,6 @@ parameters:
   - name: ProjectName
     description: Name of the project
 
-context:
-  ProjectName: Dan
-
 steps:
   - scaffold:
       package: github.com/azweb76/docs@main
@@ -13,4 +10,4 @@ steps:
       templates:
         - path: README.md
           tokens:
-            PROJECT_NAME: ${{ ProjectName }}
+            PROJECT_NAME: '{{ context.ProjectName }}'

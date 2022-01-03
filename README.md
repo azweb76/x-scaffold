@@ -1,1 +1,1 @@
-Sample readme for Scaffolder
+Sample readme for PROJECT_NAME

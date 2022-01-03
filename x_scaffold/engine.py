@@ -403,6 +403,7 @@ def locate_scaffold_file(path, name):
         os.path.join(path, f'{name}.json')
     ]
     for p in paths:
+        print(p)
         if os.path.exists(p):
             return p
     return None
@@ -468,6 +469,7 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
 
     sys.path.append(pkg_dir)
     scaffold_file = locate_scaffold_file(pkg_dir, name)
+    _log.debug('scaffold file: %s', scaffold_file)
 
     if scaffold_file is not None:
         with open(scaffold_file, 'r') as fhd:

@@ -67,7 +67,7 @@ def get_parser(path):
 def render(template_name, context, template_dir):
     """Used to render a Jinja template."""
 
-    env = Environment(loader=FileSystemLoader(template_dir))
+    env = Environment(loader=FileSystemLoader(template_dir), variable_start_string='${{', variable_end_string='}}')
     env.filters['formatlist'] = format_list
     env.filters['yaml'] = yaml_format
     env.filters['json'] = json_format
@@ -75,13 +75,13 @@ def render(template_name, context, template_dir):
 
     template = env.get_template(template_name)
 
-    return template.render(env=os.environ, context=context, utils=utils)
+    return template.render(env=os.environ, utils=utils, **context)
 
 
 def render_text(text, context: ScaffoldContext):
     """Used to render a Jinja template."""
 
-    env = Environment()
+    env = Environment(variable_start_string='${{', variable_end_string='}}')
     env.filters['formatlist'] = format_list
     env.filters['yaml'] = yaml_format
     env.filters['json'] = json_format
@@ -89,7 +89,7 @@ def render_text(text, context: ScaffoldContext):
 
     template = env.from_string(text)
 
-    return template.render(env=context.environ, context=context, utils=utils)
+    return template.render(env=context.environ, utils=utils, **context)
 
 def render_value(value, context: ScaffoldContext):
     if isinstance(value, str):

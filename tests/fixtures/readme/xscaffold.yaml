@@ -4,7 +4,7 @@ parameters:
     validate: '[a-zA-Z]+'
 
 steps:
-  - shell: echo Test project is ${{ ProjectName }}
+  - shell: echo Test project is ${TERM_RED}${{ ProjectName }}${TERM_END}
   # - scaffold:
   #     package: github.com/azweb76/x-scaffold@master
   #     steps:

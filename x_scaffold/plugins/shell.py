@@ -5,6 +5,7 @@ from ..context import ScaffoldContext
 from ..steps import ScaffoldStep
 from ..runtime import ScaffoldRuntime
 from ..plugin import ScaffoldPluginContext
+from ..rendering import render_text
 
 color = {
     'PURPLE': '\033[35m',
@@ -26,14 +27,13 @@ def init(context: ScaffoldPluginContext):
 
 class ShellStep(ScaffoldStep):
     def run(self, context: ScaffoldContext, step: dict, runtime: ScaffoldRuntime):
-        commands = step
-        cmds = commands.format(**context)
+        commands = render_text(step, context)
         term_colors = dict_to_str(color, 'TERM_%s="%s"\n')
         cmd = """
 set +x -ae
 %s
 %s
-""" % (term_colors, cmds)
+""" % (term_colors, commands)
         rc = os.system(cmd)
         if rc != 0:
             raise RuntimeError('Failed to execute command')

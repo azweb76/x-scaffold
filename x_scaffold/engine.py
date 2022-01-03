@@ -16,6 +16,7 @@ import tempfile
 import importlib
 from collections import defaultdict
 from fnmatch import fnmatch
+import git
 
 from .context import ScaffoldContext
 from .runtime import ScaffoldRuntime
@@ -442,40 +443,7 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
             '[info] using local package \'%s\'...' % package + '\n')
         pkg_dir = package
     else:
-        package_parts = package.split('@')
-        if len(package_parts) == 1:
-            package_name = package_parts[0]
-            package_version = 'main'
-        else:
-            package_name = package_parts[0]
-            package_version = package_parts[1]
-        package_name_parts = package_name.split('/')
-        if len(package_name_parts) <= 2:
-            package_name_parts = ['github.com'] + package_name_parts
-            package_name = '/'.join(package_name_parts)
-        pkg_dir = os.path.join(tempdir, f'{package_name}@{package_version}')
-
-        rc = 9999
-        if os.path.exists(pkg_dir):
-            runtime.log('{YELLOW}[git] updating %s package...{END}\n' % package)
-            rc = os.system(
-                """(cd {pkg_dir} && git pull >/dev/null 2>&1)""".format(pkg_dir=pkg_dir))
-            if rc != 0:
-                runtime.log('{RED}[error]{YELLOW} package %s is having issues, repairing...{END}\n' % package)
-                rm_rf(pkg_dir)
-
-        if rc != 0:
-            runtime.log('[git] pulling %s package...' % package + '\n')
-            rc = os.system(f"""
-        git clone https://{package_name} {pkg_dir}
-        """)
-        if rc != 0:
-            runtime.log(
-                'Failed to pull scaffold package %s' % package)
-
-        rc = os.system(f"""(cd {pkg_dir} && git checkout -f {package_version} >/dev/null 2>&1)""")
-        if rc != 0:
-            runtime.log('Failed to load version %s' % package_version)
+        pkg_dir = fetch_git(runtime, tempdir, package)
 
     sys.path.append(pkg_dir)
     scaffold_file = locate_scaffold_file(pkg_dir, name)
@@ -521,3 +489,41 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
                     plugin_step.run(context, step[step_name], runtime)
 
     return context
+
+
+def fetch_git(runtime, tempdir, package):
+    package_parts = package.split('@')
+    if len(package_parts) == 1:
+        package_name = package_parts[0]
+        package_version = 'main'
+    else:
+        package_name = package_parts[0]
+        package_version = package_parts[1]
+    package_name_parts = package_name.split('/')
+    if len(package_name_parts) <= 2:
+        package_name_parts = ['github.com'] + package_name_parts
+        package_name = '/'.join(package_name_parts)
+    pkg_dir = os.path.join(tempdir, f'{package_name}@{package_version}')
+
+    rc = 9999
+    if os.path.exists(pkg_dir):
+        runtime.log('{YELLOW}[git] updating %s package...{END}\n' % package)
+        rc = os.system(
+                """(cd {pkg_dir} && git pull >/dev/null 2>&1)""".format(pkg_dir=pkg_dir))
+        if rc != 0:
+            runtime.log('{RED}[error]{YELLOW} package %s is having issues, repairing...{END}\n' % package)
+            rm_rf(pkg_dir)
+
+    if rc != 0:
+        runtime.log('[git] pulling %s package...' % package + '\n')
+        rc = os.system(f"""
+        git clone https://{package_name} {pkg_dir} >/dev/null 2>&1
+        """)
+    if rc != 0:
+        raise Exception(
+                'Failed to pull scaffold package %s' % package)
+
+    rc = os.system(f"""(cd {pkg_dir} && git checkout -f {package_version} >/dev/null 2>&1)""")
+    if rc != 0:
+        raise Exception('Failed to load version %s' % package_version)
+    return pkg_dir

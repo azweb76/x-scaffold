@@ -425,6 +425,11 @@ def process_parameters(parameters, context: ScaffoldContext, runtime: ScaffoldRu
 def run(context: ScaffoldContext, options, runtime: ScaffoldRuntime):
     execute_scaffold(context, options, runtime)
 
+    runtime.print_todos(context)
+    runtime.print_notes(context)
+
+    return context
+
 
 def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime):
     tempdir = options.get('temp', tempfile.gettempdir())
@@ -480,8 +485,9 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
         with open(scaffold_file, 'r') as fhd:
             config = yaml.load(fhd, Loader=yaml.FullLoader)
     else:
-        _log.warning('Scaffold file not found. Defaulting to fetch all.')
-        config = {'steps': [ { 'fetch': {  }}]}
+        config = {
+            'steps': options.get('steps', [{ 'fetch': {} }])
+        }
 
     plugin_context = ScaffoldPluginContext(
         config.get('plugins', {})
@@ -513,8 +519,5 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
                             continue
                     plugin_step = plugin_context.steps[step_name]
                     plugin_step.run(context, step[step_name], runtime)
-
-    runtime.print_todos(context)
-    runtime.print_notes(context)
 
     return context

@@ -4,9 +4,12 @@ parameters:
     validate: '[a-zA-Z]+'
 
 steps:
-  - fetch:
-      source: README.md
-      templates:
-        - path: README.md
-          tokens:
-            PROJECT_NAME: ${{ ProjectName }}
+  - scaffold:
+      package: github.com/azweb76/x-scaffold@master
+      steps:
+        - fetch:
+            source: README.md
+            templates:
+            - path: README.md
+              tokens:
+                project: ${{ ProjectName }}

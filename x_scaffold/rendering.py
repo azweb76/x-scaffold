@@ -1,9 +1,11 @@
 import json
 import os
+import jinja2
 import yaml
 
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
+from jinja2.nativetypes import NativeEnvironment
 
 from x_scaffold.context import ScaffoldContext
 
@@ -81,7 +83,7 @@ def render(template_name, context, template_dir):
 def render_text(text, context: ScaffoldContext):
     """Used to render a Jinja template."""
 
-    env = Environment(variable_start_string='${{', variable_end_string='}}')
+    env = NativeEnvironment(variable_start_string='${{', variable_end_string='}}')
     env.filters['formatlist'] = format_list
     env.filters['yaml'] = yaml_format
     env.filters['json'] = json_format

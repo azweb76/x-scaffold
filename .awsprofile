@@ -1,0 +1,9 @@
+[naming hide-others]
+match = gd-aws-usa-cpo-imcoreappsvc-(.*)
+negate = true
+visible = false
+
+[naming cwd]
+match = gd-aws-usa-cpo-imcoreappsvc-(.*)
+replace = \1
+

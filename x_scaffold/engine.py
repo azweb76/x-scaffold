@@ -16,7 +16,6 @@ import tempfile
 import importlib
 from collections import defaultdict
 from fnmatch import fnmatch
-import git
 
 from .context import ScaffoldContext
 from .runtime import ScaffoldRuntime
@@ -359,19 +358,6 @@ def config_cli(args):
 #     )
 
 
-# def execute_command(context, pkg_dir, commands):
-#     cmds = commands.format(**context)
-#     term_colors = dict_to_str(color, 'TERM_%s="%s"\n')
-#     cmd = """
-# set +x -ae
-# %s
-# %s
-# """ % (term_colors, cmds)
-#     rc = os.system(cmd)
-#     if rc != 0:
-#         raise RuntimeError('Failed to execute command')
-
-
 # def load_module(m):
 #     mod = importlib.import_module('modules.%s' % m['name'])
 #     if hasattr(mod, 'init'):
@@ -395,16 +381,11 @@ def rm_rf(d):
     os.rmdir(d)
 
 
-def process_prompts(d):
-    pass
-    # for x in d:
-    #     if isinstance(d[x], Prompt):
-    #         d[x] = read_parameter(d[x].get()
-    #     elif isinstance(d[x], dict):
-    #         process_prompts(d[x])
-
 def locate_scaffold_file(path, name):
     paths = [
+        os.path.join(path, f'.{name}.yml'),
+        os.path.join(path, f'.{name}.yaml'),
+        os.path.join(path, f'.{name}.json'),
         os.path.join(path, f'{name}.yml'),
         os.path.join(path, f'{name}.yaml'),
         os.path.join(path, f'{name}.json')
@@ -413,6 +394,7 @@ def locate_scaffold_file(path, name):
         if os.path.exists(p):
             return p
     return None
+
 
 def process_parameters(parameters, context: ScaffoldContext, runtime: ScaffoldRuntime):
     for parameter in parameters:
@@ -473,22 +455,43 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
         'options': options
     }
 
+    steps_context = context['steps'] = {}
     steps: list = config.get('steps', [])
-    step: dict
 
-    invalid_stepnames = ['if']
-    for step in steps:
-        for step_name in step:
-            if step_name in plugin_context.steps:
-                if step_name not in invalid_stepnames:
-                    if 'if' in step:
-                        enabled = render_text(step['if'], context)
-                        if enabled.lower() == 'false':
-                            continue
-                    plugin_step = plugin_context.steps[step_name]
-                    plugin_step.run(context, step[step_name], runtime)
+    execute_steps(context, runtime, plugin_context, steps_context, steps)
 
     return context
+
+def execute_steps(context, runtime, plugin_context, steps_context, steps):
+    step: dict
+    for step in steps:
+        if 'if' in step:
+            enabled = render_text(step['if'], context)
+            if enabled == False:
+                continue
+        step_id = step.get('id', 'last')
+        if 'group' in step:
+            group_steps = step['group']
+            execute_steps(context, runtime, plugin_context, steps_context, group_steps)
+        elif 'foreach' in step:
+            foreach_steps = step['foreach']
+            items = render_text(foreach_steps.get('items', []), context)
+            for item in items:
+                steps_context[step_id] = item
+                execute_steps(context, runtime, plugin_context, steps_context, foreach_steps.get('steps', []))
+        else:
+            plugin_step_name = None
+            for step_name in step:
+                if step_name in plugin_context.steps:
+                    plugin_step_name = step_name
+                    break
+            if plugin_step_name:
+                plugin_step = plugin_context.steps[plugin_step_name]
+                result = plugin_step.run(context, step[plugin_step_name], runtime)
+
+                if 'id' in step:
+                    step_id = step['id']
+                    steps_context[step_id] = result
 
 
 def fetch_git(runtime, tempdir, package):

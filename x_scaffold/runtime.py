@@ -25,6 +25,13 @@ class ScaffoldRuntime:
     def ask(self, prompt):
         pass
 
+    def print_todos(self, context: ScaffoldContext):
+        pass
+
+    def print_notes(self, context: ScaffoldContext):
+        pass
+
+
 class ScaffoldConsoleRuntime(ScaffoldRuntime):
     def log(self, message):
         self.write(message + '\n')

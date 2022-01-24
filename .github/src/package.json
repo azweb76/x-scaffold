@@ -1,0 +1,18 @@
+
+{
+    "name": "dotgithub-src",
+    "version": "1.0.0",
+    "description": "Source code used to generate .github workflows, etc.",
+    "main": "dist/index.js",
+    "scripts": {
+      "build": "tsc -b"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+      "@gdcorp-im/dotgithub-actions": "^0",
+      "@gdcorp-im/dotgithub-core": "^0",
+      "typescript": "*"
+    }
+  }

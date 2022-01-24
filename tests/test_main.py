@@ -15,35 +15,36 @@ def test_main():
             self.logs.append(message)
 
     tmpdir = gettempdir()
-    helloworldPackage = tests.get_fixture('helloworld')
     runtime = TestRuntime()
     context = ScaffoldContext({
-        'helloworldPackage': helloworldPackage,
         '__target': tmpdir
     })
 
-    package = tests.get_fixture('basic')
+    package = tests.get_fixture('config')
     with patch('sys.stdout.write') as mock_write:
         engine.run(context, {
             'package': package
         }, runtime)
-    assert context == {
-        'fname': 'john',
-        'fullname': 'john doe',
-        'lname': 'doe',
-        'helloworldPackage': helloworldPackage,
-        '__package': {
-            'path': package,
-            'options': {
-                'package': package
-            }
-        },
-        '__target': tmpdir
-    }
+    # assert context == {
+    #     'fname': 'john',
+    #     'fullname': 'john doe',
+    #     'lname': 'doe',
+    #     'helloworldPackage': helloworldPackage,
+    #     '__package': {
+    #         'path': package,
+    #         'options': {
+    #             'package': package
+    #         }
+    #     },
+    #     '__target': tmpdir
+    # }
     assert context.notes == [
-        'Hello john doe!',
-        'test note from basic'
+        ''''# test
+fname: John
+lname: Clayton
+age: 20 # test comment
+'''
     ]
-    assert context.todos == [
-        'test todo from basic'
-    ]
+    # assert context.todos == [
+    #     'test todo from basic'
+    # ]

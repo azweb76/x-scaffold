@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schemastore.docs.im.int.godaddy.com/json/mystiko_schema.json",
+  "environments": {
+    "local": {
+      "profileName": "gd-aws-usa-cpo-imcoreappsvc-dev-private-poweruser",
+      "secrets": [
+        {
+          "name": "npm_token",
+          "secretName": "/Shared/artifactory/vnext/npm_ro_token"
+        }
+      ]
+    },
+    "development": {
+      "secrets": []
+    },
+    "test": {
+      "secrets": []
+    },
+    "production": {
+      "secrets": []
+    }
+  }
+}

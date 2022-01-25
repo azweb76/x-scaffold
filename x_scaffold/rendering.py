@@ -1,11 +1,11 @@
 import json
+from ntpath import join
 import os
-import jinja2
-import yaml
 
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
 from jinja2.nativetypes import NativeEnvironment
+from ruamel.yaml import YAML
 
 from x_scaffold.context import ScaffoldContext
 
@@ -33,9 +33,16 @@ class RenderUtils(object):  # pylint: disable=R0903
     @classmethod
     def read_yaml(cls, path):
         """Used to read a YAML file and return its contents."""
-
+        yaml = YAML()
         with open(path, 'r') as file_handle:
-            return yaml.load(file_handle, Loader=yaml.FullLoader)
+            return yaml.load(file_handle)
+    
+    @classmethod
+    def random_string(cls, length=16, special_chars=''):
+        chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789" + special_chars
+        from os import urandom
+
+        return "".join(chars[c % len(chars)] for c in urandom(length))
 
 
 def format_list(value, format='{value}'):
@@ -47,7 +54,8 @@ def format_list(value, format='{value}'):
 def yaml_format(value):
     if value is None:
         return 'null'
-    return yaml.dump(value, default_flow_style=True)
+    yaml = YAML()
+    return yaml.dump(value)
 
 
 def json_format(value):
@@ -56,9 +64,16 @@ def json_format(value):
     return json.dumps(value)
 
 
+def join_path(value, added_path):
+    if value is None:
+        return 'null'
+    return os.path.join(value, added_path)
+
+
 def get_parser(path):
     ext = os.path.splitext(path)[1]
     if ext == '.yaml' or ext == '.yml':
+        yaml = YAML()
         return yaml
     elif ext == '.json':
         return json
@@ -70,28 +85,43 @@ def render(template_name, context, template_dir):
     """Used to render a Jinja template."""
 
     env = Environment(loader=FileSystemLoader(template_dir), variable_start_string='${{', variable_end_string='}}')
-    env.filters['formatlist'] = format_list
-    env.filters['yaml'] = yaml_format
-    env.filters['json'] = json_format
+    add_filters(env)
     utils = RenderUtils()
 
     template = env.get_template(template_name)
 
     return template.render(env=os.environ, utils=utils, **context)
 
-
-def render_text(text, context: ScaffoldContext):
-    """Used to render a Jinja template."""
-
-    env = NativeEnvironment(variable_start_string='${{', variable_end_string='}}')
+def add_filters(env):
     env.filters['formatlist'] = format_list
     env.filters['yaml'] = yaml_format
     env.filters['json'] = json_format
+    env.filters['join_path'] = join_path
+
+
+def render_value(text, context: ScaffoldContext):
+    """Used to render a Jinja template."""
+
+    env = NativeEnvironment(variable_start_string='${{', variable_end_string='}}')
+    add_filters(env)
     utils = RenderUtils()
 
     template = env.from_string(text)
 
     return template.render(env=context.environ, utils=utils, **context)
+
+
+def render_text(text, context: ScaffoldContext):
+    """Used to render a Jinja template."""
+
+    env = Environment(variable_start_string='${{', variable_end_string='}}')
+    add_filters(env)
+    utils = RenderUtils()
+
+    template = env.from_string(text)
+
+    return template.render(env=context.environ, utils=utils, **context)
+
 
 def render_value(value, context: ScaffoldContext):
     if isinstance(value, str):

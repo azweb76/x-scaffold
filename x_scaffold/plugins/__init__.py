@@ -8,7 +8,7 @@ def load_plugins():
     path = get_path_to_plugins()
     path = Path(path)
     modules = []
-    for _, name, _ in iter_modules([path]):
+    for _, name, _ in iter_modules([str(path)]):
         if not name.startswith('__'):
             module = import_module(f'.{name}', package=__name__)
             modules.append(module)

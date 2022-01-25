@@ -14,12 +14,12 @@ class Scaffolder(ScaffoldStep):
     def run(self, context: ScaffoldContext, step: dict, runtime: ScaffoldRuntime):
         options = render_options(step, context)
         orig_package = context['__package']
-        has_private_context = False
-        if 'context' in options:
-            has_private_context = True
-            actual_context = ScaffoldContext(options['context'])
-        else:
-            actual_context = context
+
+        has_private_context = True
+        actual_context = ScaffoldContext(options.get('context', {}))
+        actual_context['__package'] = orig_package
+        actual_context['__target'] = context['__target']
+
         execute_scaffold(actual_context, options, runtime)
         if has_private_context:
             context.todos.extend(actual_context.todos)

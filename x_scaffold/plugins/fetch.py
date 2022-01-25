@@ -32,12 +32,10 @@ def render_file(path, context):
 class FetchStep(ScaffoldStep):
     def run(self, context: ScaffoldContext, step: dict, runtime: ScaffoldRuntime):
         opts = render_options(step, context)
-        pkg_dir = context['__package']['path']
-        full_pkg_dir = os.path.realpath(pkg_dir)
-        
+
+        full_pkg_dir = context.resolve_package_path('.')
         target = opts.get('target', '.')
-        target_base = os.path.realpath(context.get('__target', '.'))
-        full_target = os.path.realpath(os.path.join(target_base, target))
+        full_target = context.resolve_target_path(target)
         source = opts.get('source', '**/*')
 
         templates = opts.get('templates', [])

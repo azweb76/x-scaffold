@@ -2,7 +2,7 @@ from x_scaffold.steps import ScaffoldStep
 from github import Github, Repository, PullRequest
 
 import os
-import yaml
+from ruamel.yaml import YAML
 
 from ..plugin import ScaffoldPluginContext
 from ..context import ScaffoldContext
@@ -27,8 +27,9 @@ def fetch_token(options, context):
     host = options.get('host', 'github.com')
     gh_hosts = os.path.expanduser('~/.config/gh/hosts.yml')
     if os.path.exists(gh_hosts):
+        yaml = YAML()
         with open(gh_hosts, 'r') as f:
-            gh_hosts = yaml.load(f, Loader=yaml.FullLoader)
+            gh_hosts = yaml.load(f)
         if host in gh_hosts:
             return gh_hosts[host]['oauth_token']
     
@@ -42,9 +43,9 @@ class GithubOrgStep(ScaffoldStep):
         token = fetch_token(options, context)
         g = Github(token)
         org = g.get_organization(name)
+        context.set_step(step['__id'], org)
         gh_steps = options.get('steps', [])
         gh_step: dict
-        steps_context = context['steps']
         for gh_step in gh_steps:
             for k, v in gh_step.items():
                 if 'if' in gh_step:
@@ -53,7 +54,7 @@ class GithubOrgStep(ScaffoldStep):
                 if k not in ['id', 'if']:
                     result = invokeGH(org, k, **v)
                     if 'id' in gh_step:
-                        steps_context[gh_step['id']] = result
+                        context.set_step(gh_step['id'], result)
         return org
 
 
@@ -62,15 +63,15 @@ class GithubStep(ScaffoldStep):
         options = render_options(step, context)
         token = fetch_token(options, context)
         g = Github(token)
+        context.set_step(step['__id'], g)
         gh_steps = options.get('steps', [])
-        steps_context = context['steps']
         for gh_step in gh_steps:
             for k, v in gh_step.items():
                 if k in ['id', 'if']:
                     continue
                 result = invokeGH(g, k, **v)
                 if 'id' in gh_step:
-                    steps_context[gh_step['id']] = result
+                    context.set_step(gh_step['id'], result)
                 break
         return g
 
@@ -83,8 +84,9 @@ class GithubRepoStep(ScaffoldStep):
         token = fetch_token(options, context)
         g = Github(token)
         repo = g.get_repo(name)
+        context.set_step(step['__id'], repo)
         gh_steps = options.get('steps', [])
-        steps_context = context['steps']
+
         for gh_step in gh_steps:
             for k, v in gh_step.items():
                 if k in ['id', 'if']:
@@ -98,7 +100,7 @@ class GithubRepoStep(ScaffoldStep):
                 else:
                     result = invokeGH(repo, k, **v)
                 if 'id' in gh_step:
-                    steps_context[gh_step['id']] = result
+                    context.set_step(gh_step['id'], result)
                 break
         return repo
 

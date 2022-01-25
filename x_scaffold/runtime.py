@@ -1,9 +1,8 @@
 from getpass import getpass
-from typing import Dict, List
 import sys
-import click
 
 from x_scaffold.context import ScaffoldContext
+from x_scaffold.rendering import render_text
 
 CLI_COLORS = {
     'PURPLE': '\033[35m',
@@ -19,7 +18,7 @@ CLI_COLORS = {
 }
 
 class ScaffoldRuntime:
-    def write(self, message: str):
+    def write(self, message: str, format=False):
         pass
 
     def ask(self, prompt):
@@ -83,17 +82,24 @@ class ScaffoldConsoleRuntime(ScaffoldRuntime):
             self.write(description + ': ')
             return sys.stdin.readline().strip()
     
-    def write(self, message: str):
-        sys.stdout.write(message.format(**CLI_COLORS))
+    def write(self, message: str, format=False):
+        if format:
+            sys.stdout.write(message.format(**CLI_COLORS))
+        else:
+            sys.stdout.write(message)
         sys.stdout.flush()
 
     def print_todos(self, context: ScaffoldContext):
-        self.write('{BLUE}{BOLD}TODO:{END}\n')
-        for todo in context.todos:
-            self.write(f'  - {todo}\n')
+        if context.todos:
+            self.write('\n{GREEN}{BOLD}TODO:{END}\n'.format(**CLI_COLORS))
+            for todo in context.todos:
+                todo_str = render_text(todo, context)
+                self.write(f' [ ] {todo_str}\n')
 
     def print_notes(self, context: ScaffoldContext):
-        self.write('{GREEN}{BOLD}NOTES:{END}\n')
-        for note in context.notes:
-            self.write(f'  {note}\n')
+        if context.notes:
+            self.write('\n{BLUE}{BOLD}NOTES:{END}\n'.format(**CLI_COLORS))
+            for note in context.notes:
+                note_str = render_text(note, context)
+                self.write(f'{note_str}\n')
 

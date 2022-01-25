@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "x-scaffold"
-version = "2.0.0"
+version = "2.0.9"
 description = "Used to scaffold directories or GitHub repositories."
 authors = ["Dan Clayton <dan@azwebmaster.com>"]
 
@@ -8,7 +8,6 @@ authors = ["Dan Clayton <dan@azwebmaster.com>"]
 python = "^3.9"
 click = "7.*"
 Jinja2 = "3.0.3"
-PyYAML = "^6.0"
 PyGithub = "^1.55"
 GitPython = "^3.1.24"
 "ruamel.yaml" = "^0.17.20"

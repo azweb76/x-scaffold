@@ -17,7 +17,7 @@ def init(context: ScaffoldPluginContext):
 
 
 def get_formatter(path, options):
-    default_formatter = TextConfigFormatter()
+    default_formatter = YamlConfigFormatter()
 
     formatters: List[ConfigFormatter] = [
         YamlConfigFormatter(),
@@ -35,8 +35,10 @@ def get_formatter(path, options):
 class ConfigStep(ScaffoldStep):
     def run(self, context: ScaffoldContext, step: dict, runtime: ScaffoldRuntime):
         options = render_options(step, context)
-        target_base = os.path.realpath(context.get('__target', '.'))
-        path: str = os.path.join(target_base, options.get('path'))
+
+        # target_base = os.path.realpath(context.get('__target', '.'))
+        # path: str = os.path.join(target_base, options.get('path'))
+        path: str = context.resolve_target_path(options.get('path'))
         configuration = options.get('configuration')
 
         formatter = get_formatter(path, options)
@@ -46,8 +48,9 @@ class ConfigStep(ScaffoldStep):
 class ConfigReadStep(ScaffoldStep):
     def run(self, context: ScaffoldContext, step: dict, runtime: ScaffoldRuntime):
         options = render_options(step, context)
-        target_base = os.path.realpath(context.get('__target', '.'))
-        path: str = os.path.join(target_base, options.get('path'))
+        # target_base = os.path.realpath(context.get('__target', '.'))
+        # path: str = os.path.join(target_base, options.get('path'))
+        path: str = context.resolve_target_path(options.get('path'))
 
         formatter = get_formatter(path, options)
         return formatter.read(path)
@@ -133,16 +136,3 @@ class JsonConfigFormatter(ConfigFormatter):
         format = options.get('format')
         if format == 'json' or re.match(r'.*\.json', path):
             return True
-
-
-class TextConfigFormatter(ConfigFormatter):
-    def read(self, path):
-        with open(path, 'r') as fhd:
-            return fhd.read()
-    
-    def write(self, path, config):
-        with open(path, 'w') as fhd:
-            fhd.write(config)
-
-    def configure(self, path, config):
-        pass

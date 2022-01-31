@@ -4,3 +4,4 @@ dist
 .idea
 xscaffold.egg-info
 .vscode
+node_modules

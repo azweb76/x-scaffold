@@ -1,3 +1,4 @@
+import logging
 import os
 import pathlib
 
@@ -9,6 +10,9 @@ from ..runtime import ScaffoldRuntime
 from ..plugin import ScaffoldPluginContext
 
 from fnmatch import fnmatch
+
+
+_log = logging.getLogger(__name__)
 
 
 def init(context: ScaffoldPluginContext):
@@ -33,15 +37,18 @@ class FetchStep(ScaffoldStep):
     def run(self, context: ScaffoldContext, step: dict, runtime: ScaffoldRuntime):
         opts = render_options(step, context)
 
-        full_pkg_dir = context.resolve_package_path('.')
+        source = opts.get('source', '.')
+        full_pkg_dir = context.resolve_package_path(source)
         target = opts.get('target', '.')
         full_target = context.resolve_target_path(target)
-        source = opts.get('source', '**/*')
+        filter = opts.get('filter', '**/*')
+
+        _log.debug(f'fetching {full_pkg_dir} to {full_target} using {filter}')
 
         templates = opts.get('templates', [])
         exclude = opts.get('exclude', []) + ['.git', '.git/*']
 
-        paths = pathlib.Path(full_pkg_dir).rglob(source)
+        paths = pathlib.Path(full_pkg_dir).rglob(filter)
 
         for p_obj in paths:
             p = str(p_obj)

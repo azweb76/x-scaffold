@@ -6,7 +6,6 @@ from typing import Dict, List
 class ScaffoldContext(dict):
     notes: List[str]
     todos: List[str]
-    environ: Dict[str, str]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -25,7 +24,6 @@ class ScaffoldContext(dict):
         }
         self.notes = []
         self.todos = []
-        self.environ = {}
 
     def resolve_package_path(self, path):
         package_dir = self['__package']['path']

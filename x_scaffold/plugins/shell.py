@@ -1,7 +1,8 @@
+from asyncio import subprocess
+import subprocess
 import os
 
 from ..context import ScaffoldContext
-
 from ..steps import ScaffoldStep
 from ..runtime import ScaffoldRuntime
 from ..plugin import ScaffoldPluginContext
@@ -34,9 +35,10 @@ set +x -ae
 %s
 %s
 """ % (term_colors, commands)
-        rc = os.system(cmd)
-        if rc != 0:
-            raise RuntimeError('Failed to execute command')
+        subprocess.run(cmd, cwd=context.get('__target', '.'), check=True, shell=True)
+        # rc = os.system(cmd)
+        # if rc != 0:
+        #     raise RuntimeError('Failed to execute command')
 
 
 def dict_to_str(d, fmt='%s=%s\n'):

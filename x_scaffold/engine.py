@@ -10,6 +10,8 @@ import tempfile
 
 from ruamel.yaml import YAML
 
+from x_scaffold.steps import ScaffoldStepExecution
+
 from .context import ScaffoldContext
 from .plugin import ScaffoldPluginContext
 from .plugins import load_plugins
@@ -199,6 +201,7 @@ def locate_scaffold_file(path, name):
         for ext in extensions:
             for n in names:
                 full_path = os.path.join(base_path, n + ext)
+                _log.debug(f'locating scaffold using {full_path}')
                 if os.path.exists(full_path):
                     return full_path
     return None
@@ -248,14 +251,13 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
     if scaffold_file:
         pkg_dir = os.path.dirname(scaffold_file)
     sys.path.append(pkg_dir)
-    
 
     if scaffold_file is not None:
         with open(scaffold_file, 'r') as fhd:
             config = yaml.load(fhd)
     else:
         config = {
-            'steps': options.get('steps', [{ 'fetch': {} }])
+            'steps': options.get('steps', [{ 'action': 'fetch' }])
         }
 
     context.todos.extend(config.get('todos', []))
@@ -265,13 +267,16 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
         config.get('plugins', {})
     )
 
+    step_execution = ScaffoldStepExecution(plugin_context)
+
     plugins: list = load_plugins()
     for plugin in plugins:
         plugin.init(plugin_context)
 
-    context.update(config.get('context', {}))
-
     process_parameters(config.get('parameters', []), context, runtime)
+
+    context_options = render_options(config.get('context', {}), context)
+    context.update(context_options)
 
     context['__package'] = {
         'path': pkg_dir,
@@ -281,45 +286,49 @@ def execute_scaffold(context: ScaffoldContext, options, runtime: ScaffoldRuntime
     steps_context = context['steps'] = {}
     steps: list = config.get('steps', [])
 
-    execute_steps(context, runtime, plugin_context, steps_context, steps)
+    step_execution.execute(context, runtime, steps_context, steps)
 
     return context
 
-def execute_steps(context: ScaffoldContext, runtime, plugin_context, steps_context, steps):
-    step: dict
-    for step in steps:
-        if 'if' in step:
-            enabled = render_value(step['if'], context)
-            if enabled == False:
-                continue
-        if 'group' in step:
-            group_steps = step['group']
-            execute_steps(context, runtime, plugin_context, steps_context, group_steps)
-        elif 'foreach' in step:
-            foreach_steps = step['foreach']
-            items = render_value(foreach_steps.get('items', []), context)
-            step_id = step.get('id', 'foreach')
-            for item in items:
-                context.set_step(step_id, item)
-                execute_steps(context, runtime, plugin_context, steps_context, foreach_steps.get('steps', []))
-        else:
-            plugin_step_name = None
-            for step_name in step:
-                if step_name in plugin_context.steps:
-                    plugin_step_name = step_name
-                    break
-            if plugin_step_name:
-                plugin_step = plugin_context.steps[plugin_step_name]
-                step_options = step[plugin_step_name]
+# def execute_steps(context: ScaffoldContext, runtime, step_execution: ScaffoldStepExecution, steps_context, steps):
+#     step: dict
+#     for step in steps:
+#         if 'if' in step:
+#             enabled = render_value(step['if'], context)
+#             if enabled == False:
+#                 continue
+#         if 'group' in step:
+#             group_steps = step['group']
+#             execute_steps(context, runtime, step_execution, steps_context, group_steps)
+#         elif 'foreach' in step:
+#             foreach_steps = step['foreach']
+#             items = render_value(foreach_steps.get('items', []), context)
+#             step_id = step.get('id', 'foreach')
+#             for item in items:
+#                 context.set_step(step_id, item)
+#                 execute_steps(context, runtime, step_execution, steps_context, foreach_steps.get('steps', []))
+#         else:
+#             executor = None
+#             executor_step_name = None
+#             is_plugin = False
+#             for step_name in step:
+#                 executor, is_plugin = step_execution.get_executor(step_name, context)
+#                 if executor is not None:
+#                     executor_step_name = step_name
+#                     break
+#             if executor:
+#                 step_options = step[executor_step_name]
 
-                step_id = step.get('id', plugin_step_name)
-
-                if isinstance(step_options, collections.Mapping):
-                    step_options['__id'] = step_id
+#                 step_id = step.get('id', executor_step_name)
                 
-                _log.debug(f'[{step_id}] running')
-                result = plugin_step.run(context, step_options, runtime)
-                context.set_step(step_id, result)
+#                 _log.debug(f'[{step_id}] running')
+#                 if is_plugin:
+#                     if isinstance(executor_step_name, collections.Mapping):
+#                         step_options['__id'] = step_id
+#                     result = executor(context, step_options, runtime)
+#                 else:
+#                     executor(**step_options)
+#                 context.set_step(step_id, result)
 
 def fetch_git(runtime, tempdir, package):
     package_parts = package.split('@')
@@ -338,7 +347,7 @@ def fetch_git(runtime, tempdir, package):
 
     rc = 9999
     if os.path.exists(pkg_dir):
-        _log.info('[git] updating %s package', package)
+        _log.debug('[git] updating %s package', package)
         rc = os.system(
                 """(cd {pkg_dir} && git pull >/dev/null 2>&1)""".format(pkg_dir=pkg_dir))
         if rc != 0:
@@ -346,7 +355,7 @@ def fetch_git(runtime, tempdir, package):
             rm_rf(pkg_dir)
 
     if rc != 0:
-        _log.info('[git] pulling %s package', package)
+        _log.debug('[git] pulling %s package', package)
         rc = os.system(f"""
         git clone https://{package_name} {pkg_dir} >/dev/null 2>&1
         """)

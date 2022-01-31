@@ -30,8 +30,10 @@ class AddColorFormatter(logging.Formatter):
 @click.option('-p', '--parameter', multiple=True, help='Parameters to set in the context')
 def apply_cli(package, name, target, parameter):
     context = ScaffoldContext({
-        '__target': os.path.expanduser(target)
+        '__target': os.path.expanduser(target),
+        'env': os.environ
     })
+
     p: str
     for p in parameter:
         eq_idx = p.index('=')

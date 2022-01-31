@@ -19,6 +19,7 @@ class Scaffolder(ScaffoldStep):
         actual_context = ScaffoldContext(options.get('context', {}))
         actual_context['__package'] = orig_package
         actual_context['__target'] = context['__target']
+        actual_context['env'] = context['env']
 
         execute_scaffold(actual_context, options, runtime)
         if has_private_context:

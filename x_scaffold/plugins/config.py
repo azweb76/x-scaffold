@@ -123,7 +123,7 @@ class JsonConfigFormatter(ConfigFormatter):
     
     def write(self, path, config):
         with open(path, 'w') as fhd:
-            json.dump(config, fhd)
+            json.dump(config, fhd, indent=4)
 
     def configure(self, path, config):
         yaml_dict = self.read(path)

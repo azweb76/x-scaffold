@@ -17,9 +17,10 @@ def init(context: ScaffoldPluginContext):
     context.add_step("add_note", AddNoteStep())
     context.add_step("add_todo", AddTodoStep())
     context.add_step("module", ModuleStep())
+    context.add_step("file", FileStep())
 
 
-class SetStep(ScaffoldStep):
+class SetStep(ScaffoldStep):   
     def run(self, context: ScaffoldContext, step: dict, runtime: ScaffoldRuntime):
         context_names = step
         for context_name in context_names:
@@ -52,6 +53,25 @@ class ModuleStep(ScaffoldStep):
         main_fn = getattr(foo, 'main')
 
         return main_fn(context, options, runtime)
+
+
+class FileStep(ScaffoldStep):
+    def write(self, context: ScaffoldContext, step: dict, runtime: ScaffoldRuntime):
+        options = render_options(step, context)
+
+        path = context.resolve_target_path(options['path'])
+        content = options.get('content')
+
+        with open(path, 'w') as fhd:
+            fhd.write(content)
+    
+    def read(self, context: ScaffoldContext, step: dict, runtime: ScaffoldRuntime):
+        options = render_options(step, context)
+
+        path = context.resolve_target_path(options['path'])
+
+        with open(path, 'r') as fhd:
+            return fhd.read()
 
 
 def install_dependencies(dependencies):
